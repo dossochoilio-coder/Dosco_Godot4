@@ -30,21 +30,18 @@ jobs:
 
       - name: Find or create debug keystore
         run: |
-          EXISTING=$(find / -name "debug.keystore" 2>/dev/null | head -1)
-          if [ -n "$EXISTING" ]; then
-            echo "Keystore trouvé: $EXISTING"
-            cp "$EXISTING" /root/debug.keystore
-          else
+          KEYSTORE="/root/debug.keystore"
+          if [ ! -f "$KEYSTORE" ]; then
             echo "Création du keystore..."
             keytool -genkeypair -v \
-              -keystore /root/debug.keystore \
+              -keystore "$KEYSTORE" \
               -alias androiddebugkey \
               -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass android -keypass android \
               -dname "CN=Android Debug,O=Android,C=US" \
               -noprompt 2>/dev/null || true
           fi
-          ls -lh /root/debug.keystore 2>/dev/null || echo "Keystore absent"
+          echo "Keystore: $(ls -lh $KEYSTORE 2>/dev/null || echo 'absent')"
 
       - name: Install export templates
         run: |
