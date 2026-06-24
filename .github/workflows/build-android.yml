@@ -100,7 +100,7 @@ jobs:
           echo "=== build-tools ==="
           ls "$SDK/build-tools/" 2>/dev/null || echo "MANQUANT"
           godot --headless \
-            --export-debug "Android Release (APK)" \
+            --export-debug "Android Debug (APK)" \
             "$GITHUB_WORKSPACE/builds/DOSCO_$GITHUB_RUN_NUMBER.apk" \
             --path "$GITHUB_WORKSPACE" 2>&1
           ls -lh "$GITHUB_WORKSPACE/builds/" || true
@@ -108,7 +108,7 @@ jobs:
       - name: Export AAB
         run: |
           godot --headless \
-            --export-debug "Android Release (AAB)" \
+            --export-debug "Android Debug (AAB)" \
             "$GITHUB_WORKSPACE/builds/DOSCO_$GITHUB_RUN_NUMBER.aab" \
             --path "$GITHUB_WORKSPACE" 2>&1 || true
 
