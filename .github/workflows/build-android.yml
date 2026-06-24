@@ -10,28 +10,28 @@ env:
   EXPORT_NAME: "DOSCO"
 
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-22.04
     timeout-minutes: 50
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # === Godot Setup ===
-      - name: Setup Godot 4.3
+      # === Setup Godot ===
+      - name: Setup Godot ${{ env.GODOT_VERSION }}
         uses: chickensoft-games/setup-godot@v1
         with:
           version: ${{ env.GODOT_VERSION }}
           export-templates: true
 
-      # === Android SDK ===
+      # === Setup Android SDK ===
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           cache: true
 
-      # === Debug Keystore (toujours généré) ===
+      # === Generate Debug Keystore ===
       - name: Generate Debug Keystore
         run: |
           keytool -genkeypair -v \
@@ -42,7 +42,7 @@ jobs:
             -storepass android -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      # === Release Keystore (optionnel) ===
+      # === Decode Release Keystore (si présent) ===
       - name: Decode Release Keystore
         if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         env:
@@ -51,31 +51,48 @@ jobs:
           echo "$KEYSTORE_B64" | base64 -d > release.keystore
           chmod 600 release.keystore
 
-      # === Export ===
+      # === Prepare builds folder ===
       - name: Create builds directory
         run: mkdir -p builds
 
-      - name: Export APK (Release)
+      # === Export APK (Release) ===
+      - name: Export APK
         run: |
           godot --headless --export-release "Android Release (APK)" \
             builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.apk
 
-      - name: Export AAB (Release)
+      # === Export AAB (Release) ===
+      - name: Export AAB
         run: |
           godot --headless --export-release "Android Release (AAB)" \
             builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB export skipped or failed"
 
-      # === Artifacts ===
-      - name: Upload APK
+      # === Upload Artifacts ===
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: DOSCO-APK-${{ github.run_number }}
           path: builds/*.apk
           retention-days: 30
 
-      - name: Upload AAB
+      - name: Upload AAB Artifact
         uses: actions/upload-artifact@v4
         with:
           name: DOSCO-AAB-${{ github.run_number }}
           path: builds/*.aab
           retention-days: 30
+
+      # === Optional: Create GitHub Release ===
+      - name: Create GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: "DOSCO Build #${{ github.run_number }}"
+          files: |
+            builds/*.apk
+            builds/*.aab
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
