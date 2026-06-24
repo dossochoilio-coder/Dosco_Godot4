@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  GODOT_VERSION: "4.3"
+  GODOT_VERSION: "4.3.0"
   EXPORT_NAME: "DOSCO"
 
 jobs:
@@ -18,14 +18,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # === Godot Setup ===
+      # === Setup Godot (version corrigée) ===
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v1
         with:
           version: ${{ env.GODOT_VERSION }}
-          export-templates: true
+          include-templates: true
 
-      # === Android SDK ===
+      # === Setup Android SDK ===
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -42,7 +42,7 @@ jobs:
             -storepass android -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      # === Release Keystore (Version sécurisée) ===
+      # === Release Keystore (optionnel) ===
       - name: Decode Release Keystore
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || '' }}
@@ -50,24 +50,24 @@ jobs:
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > release.keystore
             chmod 600 release.keystore
-            echo "✅ Release keystore decoded successfully"
+            echo "✅ Release keystore decoded"
           else
-            echo "ℹ️ No release keystore provided - building with debug keystore only"
+            echo "ℹ️ No release keystore provided"
           fi
 
       # === Build ===
       - name: Create builds directory
         run: mkdir -p builds
 
-      - name: Export APK (Release)
+      - name: Export APK
         run: |
           godot --headless --export-release "Android Release (APK)" \
             builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.apk
 
-      - name: Export AAB (Release)
+      - name: Export AAB
         run: |
           godot --headless --export-release "Android Release (AAB)" \
-            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB export skipped or failed"
+            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB export skipped"
 
       # === Upload Artifacts ===
       - name: Upload APK
