@@ -96,6 +96,15 @@ jobs:
 
       - name: Create builds dir
         run: mkdir -p "$GITHUB_WORKSPACE/builds"
+      
+      - name: Install Android build template (force CI)
+        run: |
+          godot --headless --path "$GITHUB_WORKSPACE" --quit || true
+          godot --headless --path "$GITHUB_WORKSPACE" --install-android-build-template || true
+    
+          echo "=== Vérification android ==="
+          ls -R "$GITHUB_WORKSPACE/android" || echo "ANDROID ABSENT"
+          ``
 
       - name: Export APK
         run: |
