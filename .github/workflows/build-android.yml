@@ -26,9 +26,9 @@ jobs:
           path: |
             /usr/local/bin/godot
             ~/.local/share/godot/export_templates
-          key: godot-${{ env.GODOT_VERSION }}-android-v2
+          key: godot-${{ env.GODOT_VERSION }}-android-v3
 
-      # ── Godot + Templates ────────────────────────────────────────
+      # ── Godot ────────────────────────────────────────────────────
       - name: Install Godot ${{ env.GODOT_VERSION }}
         if: steps.cache-godot.outputs.cache-hit != 'true'
         run: |
@@ -36,7 +36,7 @@ jobs:
           unzip -q /tmp/godot.zip -d /tmp/
           sudo mv "/tmp/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64" /usr/local/bin/godot
           sudo chmod +x /usr/local/bin/godot
-          echo "Godot: $(godot --version)"
+          godot --version
 
       - name: Install Export Templates
         if: steps.cache-godot.outputs.cache-hit != 'true'
@@ -46,7 +46,6 @@ jobs:
           wget -q "https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_export_templates.tpz" -O /tmp/templates.tpz
           cd /tmp && unzip -q templates.tpz
           mv /tmp/templates/* "$TDIR/"
-          ls "$TDIR/" | head -5
 
       # ── Java + Android SDK ───────────────────────────────────────
       - name: Setup Java 17
@@ -59,8 +58,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android packages
-        run: |
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;23.2.8568313"
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;23.2.8568313"
 
       # ── Keystore debug ───────────────────────────────────────────
       - name: Generate debug keystore
@@ -72,41 +70,33 @@ jobs:
             -storepass android -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      # ── Godot editor settings ────────────────────────────────────
+      # ── Godot editor settings (sans heredoc) ─────────────────────
       - name: Configure Godot editor settings
         run: |
           mkdir -p "$HOME/.config/godot"
-          cat > "$HOME/.config/godot/editor_settings-4.tres" << 'EOF'
-[gd_resource type="EditorSettings" format=3]
-[resource]
-export/android/android_sdk_path = "/usr/local/lib/android/sdk"
-export/android/debug_keystore = ""
-export/android/debug_keystore_user = ""
-export/android/debug_keystore_pass = ""
-EOF
+          printf '[gd_resource type="EditorSettings" format=3]\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/debug_keystore = "%s"\nexport/android/debug_keystore_user = "androiddebugkey"\nexport/android/debug_keystore_pass = "android"\n' \
+            "$ANDROID_SDK_ROOT" \
+            "${{ github.workspace }}/debug.keystore" \
+            > "$HOME/.config/godot/editor_settings-4.tres"
+          cat "$HOME/.config/godot/editor_settings-4.tres"
 
       # ── Android build template ───────────────────────────────────
       - name: Install Android build template
         run: |
-          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable"
-          PLUGIN_ZIP="$TEMPLATE_DIR/android_source.zip"
-          if [ -f "$PLUGIN_ZIP" ]; then
+          TDIR="$HOME/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable"
+          if [ -f "$TDIR/android_source.zip" ]; then
             mkdir -p "${{ github.workspace }}/android/build"
-            cd "${{ github.workspace }}"
-            unzip -q "$PLUGIN_ZIP" -d android/build/ || true
+            unzip -q "$TDIR/android_source.zip" -d "${{ github.workspace }}/android/build/" || true
           fi
-          # Créer la structure minimale attendue par Godot
           mkdir -p "${{ github.workspace }}/android/build"
-          echo '{}' > "${{ github.workspace }}/android/.build_version"
-          touch "${{ github.workspace }}/android/build/.gdignore"
+          echo "Build template ready"
 
       # ── Import ───────────────────────────────────────────────────
       - name: Import project
         run: |
-          timeout 120 godot --headless --editor --quit --path "${{ github.workspace }}" 2>&1 | tail -30 || true
-          echo "Import terminé"
+          timeout 120 godot --headless --editor --quit --path "${{ github.workspace }}" 2>&1 | tail -20 || true
 
-      # ── Build APK ────────────────────────────────────────────────
+      # ── Build ────────────────────────────────────────────────────
       - name: Create builds dir
         run: mkdir -p "${{ github.workspace }}/builds"
 
@@ -115,14 +105,13 @@ EOF
           godot --headless --export-debug "Android Release (APK)" \
             "${{ github.workspace }}/builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.apk" \
             --path "${{ github.workspace }}" 2>&1
-          ls -lh builds/ || echo "Pas d'APK généré"
+          ls -lh "${{ github.workspace }}/builds/" || true
 
       - name: Export AAB
         run: |
           godot --headless --export-debug "Android Release (AAB)" \
             "${{ github.workspace }}/builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab" \
-            --path "${{ github.workspace }}" 2>&1 || echo "AAB ignoré"
-          ls -lh builds/
+            --path "${{ github.workspace }}" 2>&1 || true
 
       # ── Artifacts ────────────────────────────────────────────────
       - name: Upload APK
@@ -148,6 +137,5 @@ EOF
           tag_name: v1.0.${{ github.run_number }}
           name: "DOSCO v1.0.${{ github.run_number }}"
           files: builds/*
-          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
