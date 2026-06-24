@@ -12,7 +12,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 55
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -25,14 +25,16 @@ jobs:
           version: ${{ env.GODOT_VERSION }}
           include-templates: true
 
-      # === Android SDK (sans cache pour éviter l'erreur) ===
+      # === Android SDK (version plus robuste) ===
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: "latest"
-          packages: |
-            platforms;android-34
-            build-tools;34.0.0
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager --update
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
       # === Debug Keystore ===
       - name: Generate Debug Keystore
@@ -53,7 +55,7 @@ jobs:
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > release.keystore
             chmod 600 release.keystore
-            echo "✅ Release keystore decoded successfully"
+            echo "✅ Release keystore decoded"
           else
             echo "ℹ️ No release keystore provided"
           fi
@@ -70,17 +72,17 @@ jobs:
       - name: Export AAB
         run: |
           godot --headless --export-release "Android Release (AAB)" \
-            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB export skipped or failed"
+            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB export skipped"
 
       # === Upload Artifacts ===
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: DOSCO-APK-${{ github.run_number }}
           path: builds/*.apk
           retention-days: 30
 
-      - name: Upload AAB Artifact
+      - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: DOSCO-AAB-${{ github.run_number }}
