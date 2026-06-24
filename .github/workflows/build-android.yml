@@ -73,6 +73,11 @@ jobs:
           echo "Templates Android:"
           ls "$TDIR/" | grep android
 
+      - name: Install Android build template (CI fix)
+        run: |
+          godot --headless --path "$GITHUB_WORKSPACE" --install-android-build-template
+          ``
+
       - name: Write editor settings
         run: |
           SDK="/github/home/.android/sdk"
