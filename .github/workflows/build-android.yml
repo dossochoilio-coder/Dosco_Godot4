@@ -12,24 +12,27 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 50
+    timeout-minutes: 55
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # === Setup Godot (version corrigée) ===
+      # === Godot Setup ===
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v1
         with:
           version: ${{ env.GODOT_VERSION }}
           include-templates: true
 
-      # === Setup Android SDK ===
+      # === Android SDK (sans cache pour éviter l'erreur) ===
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          cache: true
+          cmdline-tools-version: "latest"
+          packages: |
+            platforms;android-34
+            build-tools;34.0.0
 
       # === Debug Keystore ===
       - name: Generate Debug Keystore
@@ -42,7 +45,7 @@ jobs:
             -storepass android -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      # === Release Keystore (optionnel) ===
+      # === Release Keystore ===
       - name: Decode Release Keystore
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || '' }}
@@ -50,7 +53,7 @@ jobs:
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > release.keystore
             chmod 600 release.keystore
-            echo "✅ Release keystore decoded"
+            echo "✅ Release keystore decoded successfully"
           else
             echo "ℹ️ No release keystore provided"
           fi
@@ -67,17 +70,17 @@ jobs:
       - name: Export AAB
         run: |
           godot --headless --export-release "Android Release (AAB)" \
-            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB export skipped"
+            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB export skipped or failed"
 
       # === Upload Artifacts ===
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: DOSCO-APK-${{ github.run_number }}
           path: builds/*.apk
           retention-days: 30
 
-      - name: Upload AAB
+      - name: Upload AAB Artifact
         uses: actions/upload-artifact@v4
         with:
           name: DOSCO-AAB-${{ github.run_number }}
