@@ -20,7 +20,12 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android platform
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+        run: |
+          sdkmanager --sdk_root=/github/home/.android/sdk \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
+          echo "=== Platforms ==="
+          ls /github/home/.android/sdk/platforms/ || echo "MANQUANT"
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
