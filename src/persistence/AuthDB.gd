@@ -1,18 +1,41 @@
-# src/persistence/AuthDB.gd
+# src/persistence/SaveManager.gd
 extends Node
 
-const USERS_FILE := "user://users.json"
-const SESSION_FILE := "user://session.json"
+const SAVE_FILE   := "user://save_data.json"
+const SEASON_FILE := "user://season.json"
 
-func get_users() -> Dictionary:
-    if FileAccess.file_exists(USERS_FILE):
-        var f := FileAccess.open(USERS_FILE, FileAccess.READ)
-        var data := JSON.parse_string(f.get_as_text())
-        f.close()
-        return data if data else {}
-    return {}
+func save_data(data: Dictionary) -> void: _write(SAVE_FILE, data)
+func load_data() -> Dictionary: return _read(SAVE_FILE)
+func save_season_data(data: Dictionary) -> void: _write(SEASON_FILE, data)
+func load_season() -> Dictionary: return _read(SEASON_FILE)
 
-func save_session(session: Dictionary) -> void:
-    var f := FileAccess.open(SESSION_FILE, FileAccess.WRITE)
-    f.store_string(JSON.stringify(session))
-    f.close()
+func save_pending_game(config: Dictionary) -> void:
+	var data: Dictionary = load_data()
+	data["pending_game"] = config
+	save_data(data)
+
+func load_pending_game() -> Dictionary:
+	var data: Dictionary = load_data()
+	var pg: Variant = data.get("pending_game")
+	if pg is Dictionary: return pg as Dictionary
+	return {}
+
+func clear_pending_game() -> void:
+	var data: Dictionary = load_data()
+	data.erase("pending_game")
+	save_data(data)
+
+func _read(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path): return {}
+	var f: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if f == null: return {}
+	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	f.close()
+	if parsed is Dictionary: return parsed as Dictionary
+	return {}
+
+func _write(path: String, data: Dictionary) -> void:
+	var f: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	if f == null: return
+	f.store_string(JSON.stringify(data, "\t"))
+	f.close()
