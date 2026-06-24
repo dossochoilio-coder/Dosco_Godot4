@@ -22,14 +22,57 @@ jobs:
       - name: Install Android platform
         run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Write editor settings
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Generate debug keystore
         run: |
+          keytool -genkeypair -v \
+            -keystore /root/debug.keystore \
+            -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US"
+          echo "Keystore: $(ls -lh /root/debug.keystore)"
+
+      - name: Install export templates
+        run: |
+          TDIR="/github/home/.local/share/godot/export_templates/4.3.stable"
+          mkdir -p "$TDIR"
+          # Copier depuis l'image (barichello/godot-ci les met dans /root)
+          if ls /root/.local/share/godot/export_templates/4.3.stable/ 2>/dev/null; then
+            cp /root/.local/share/godot/export_templates/4.3.stable/* "$TDIR/" || true
+            echo "Templates copiés depuis /root"
+          fi
+          # Si pas là, télécharger
+          if [ ! -f "$TDIR/android_debug.apk" ]; then
+            echo "Téléchargement des templates..."
+            wget -q "https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz" -O /tmp/tpl.tpz
+            cd /tmp && unzip -q tpl.tpz
+            cp /tmp/templates/* "$TDIR/"
+          fi
+          echo "Templates disponibles:"
+          ls "$TDIR/" | grep android
+
+      - name: Write complete editor settings
+        run: |
+          SDK="/github/home/.android/sdk"
+          TDIR="/github/home/.local/share/godot/export_templates/4.3.stable"
+          KEYSTORE="/root/debug.keystore"
+          JAVA_HOME_PATH="$(dirname $(dirname $(readlink -f $(which java))))"
           mkdir -p /root/.config/godot
-          SDK_PATH="${ANDROID_SDK_ROOT:-/github/home/.android/sdk}"
-          printf '[gd_resource type="EditorSettings" format=3]\n[resource]\nexport/android/android_sdk_path = "%s"\n' \
-            "$SDK_PATH" > /root/.config/godot/editor_settings-4.tres
-          echo "=== SDK: $SDK_PATH ==="
+          printf '[gd_resource type="EditorSettings" format=3]\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/debug_keystore = "%s"\nexport/android/debug_keystore_user = "androiddebugkey"\nexport/android/debug_keystore_pass = "android"\nexport/android/custom_build_sdk_path = "%s"\neditor/script/templates_search_path = "%s"\n' \
+            "$SDK" "$KEYSTORE" "$SDK" "$TDIR" \
+            > /root/.config/godot/editor_settings-4.tres
+          echo "=== Editor settings ==="
           cat /root/.config/godot/editor_settings-4.tres
+          echo "=== JAVA ==="
+          java -version 2>&1 | head -1
+          echo "=== Templates ==="
+          ls "$TDIR/" | grep android
 
       - name: Import project
         run: |
