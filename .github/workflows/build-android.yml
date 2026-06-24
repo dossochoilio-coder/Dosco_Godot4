@@ -22,17 +22,17 @@ jobs:
       - name: Install Android platform
         run: |
           SDK="/github/home/.android/sdk"
-          PLATFORM_DIR="$SDK/platforms/android-34"
-          if [ ! -d "$PLATFORM_DIR" ]; then
-            echo "Téléchargement platform android-34..."
-            mkdir -p "$PLATFORM_DIR"
-            wget -q "https://dl.google.com/android/repository/platform-34_r02.zip" \
-              -O /tmp/platform34.zip
-            unzip -q /tmp/platform34.zip -d /tmp/platform34/
-            mv /tmp/platform34/android-34/* "$PLATFORM_DIR/"
-          fi
+          mkdir -p "$SDK/platforms"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" \
+            --sdk_root="$SDK" \
+            "platforms;android-34" \
+            "build-tools;34.0.0" || \
+          yes | sdkmanager \
+            --sdk_root="$SDK" \
+            "platforms;android-34" \
+            "build-tools;34.0.0" || true
           echo "=== Platforms ==="
-          ls "$SDK/platforms/"
+          ls "$SDK/platforms/" 2>/dev/null || echo "MANQUANT"
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -94,13 +94,11 @@ jobs:
 
       - name: Export APK
         run: |
-          echo "=== Templates ==="
-          ls /github/home/.local/share/godot/export_templates/4.3.stable/ | grep android || echo "MANQUANT"
-          echo "=== Editor settings ==="
-          cat /root/.config/godot/editor_settings-4.tres || echo "MANQUANT"
-          echo "=== SDK ==="
-          ls /github/home/.android/sdk/ | head -5 || echo "SDK MANQUANT"
-          echo "=== Export ==="
+          SDK="/github/home/.android/sdk"
+          echo "=== Platforms ==="
+          ls "$SDK/platforms/" 2>/dev/null || echo "MANQUANT"
+          echo "=== build-tools ==="
+          ls "$SDK/build-tools/" 2>/dev/null || echo "MANQUANT"
           godot --headless \
             --export-debug "Android Release (APK)" \
             "$GITHUB_WORKSPACE/builds/DOSCO_$GITHUB_RUN_NUMBER.apk" \
