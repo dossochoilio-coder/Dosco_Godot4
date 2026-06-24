@@ -25,15 +25,16 @@ jobs:
       - name: Write editor settings
         run: |
           mkdir -p /root/.config/godot
-          python3 -c "
-          content = '[gd_resource type=\"EditorSettings\" format=3]\n[resource]\nexport/android/android_sdk_path = \"/usr/local/lib/android/sdk\"\n'
-          open('/root/.config/godot/editor_settings-4.tres','w').write(content)
-          print(content)
-          "
+          SDK_PATH="${ANDROID_SDK_ROOT:-/github/home/.android/sdk}"
+          printf '[gd_resource type="EditorSettings" format=3]\n[resource]\nexport/android/android_sdk_path = "%s"\n' \
+            "$SDK_PATH" > /root/.config/godot/editor_settings-4.tres
+          echo "=== SDK: $SDK_PATH ==="
+          cat /root/.config/godot/editor_settings-4.tres
 
       - name: Import project
         run: |
-          godot --headless --editor --quit --path "$GITHUB_WORKSPACE" 2>&1 | tail -20 || true
+          godot --headless --editor --quit \
+            --path "$GITHUB_WORKSPACE" 2>&1 | tail -20 || true
 
       - name: Create builds dir
         run: mkdir -p "$GITHUB_WORKSPACE/builds"
