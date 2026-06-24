@@ -18,14 +18,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # === Godot Setup ===
+      # === Godot ===
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v1
         with:
           version: ${{ env.GODOT_VERSION }}
           include-templates: true
 
-      # === Android SDK (version plus robuste) ===
+      # === Android SDK ===
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -47,17 +47,19 @@ jobs:
             -storepass android -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      # === Release Keystore ===
+      # === Release Keystore (version tolérante aux erreurs) ===
       - name: Decode Release Keystore
+        continue-on-error: true
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || '' }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > release.keystore
-            chmod 600 release.keystore
-            echo "✅ Release keystore decoded"
+            echo "$KEYSTORE_B64" | base64 -d > release.keystore 2>/dev/null && \
+            chmod 600 release.keystore && \
+            echo "✅ Release keystore decoded successfully" || \
+            echo "⚠️ Failed to decode release keystore (invalid base64)"
           else
-            echo "ℹ️ No release keystore provided"
+            echo "ℹ️ No release keystore secret found - using debug keystore only"
           fi
 
       # === Build ===
