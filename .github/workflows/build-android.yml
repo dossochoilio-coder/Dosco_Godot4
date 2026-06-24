@@ -81,6 +81,13 @@ jobs:
 
       - name: Export APK
         run: |
+          echo "=== Templates ==="
+          ls /github/home/.local/share/godot/export_templates/4.3.stable/ | grep android || echo "MANQUANT"
+          echo "=== Editor settings ==="
+          cat /root/.config/godot/editor_settings-4.tres || echo "MANQUANT"
+          echo "=== SDK ==="
+          ls /github/home/.android/sdk/ | head -5 || echo "SDK MANQUANT"
+          echo "=== Export ==="
           godot --headless \
             --export-debug "Android Release (APK)" \
             "$GITHUB_WORKSPACE/builds/DOSCO_$GITHUB_RUN_NUMBER.apk" \
