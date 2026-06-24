@@ -1,0 +1,32 @@
+# Godot 4+ specific
+.godot/
+.import/
+export.cfg
+export_presets.cfg
+
+# Build outputs
+builds/
+*.apk
+*.aab
+*.apk.idsig
+
+# Keystore (NEVER commit this!)
+*.keystore
+*.jks
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Godot addon cache (if any)
+addons/*/.import/
