@@ -18,14 +18,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # === Godot ===
-      - name: Setup Godot
+      - name: Setup Godot (version standard - non Mono)
         uses: chickensoft-games/setup-godot@v1
         with:
           version: ${{ env.GODOT_VERSION }}
           include-templates: true
+          godot-sharp-release: false
 
-      # === Android SDK ===
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -36,7 +35,6 @@ jobs:
           sdkmanager --update
           sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-      # === Debug Keystore ===
       - name: Generate Debug Keystore
         run: |
           keytool -genkeypair -v \
@@ -47,7 +45,6 @@ jobs:
             -storepass android -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      # === Release Keystore (optionnel) ===
       - name: Decode Release Keystore
         continue-on-error: true
         env:
@@ -56,12 +53,8 @@ jobs:
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > release.keystore
             chmod 600 release.keystore
-            echo "✅ Release keystore ready"
-          else
-            echo "ℹ️ Using debug keystore only"
           fi
 
-      # === Export ===
       - name: Create builds folder
         run: mkdir -p builds
 
@@ -75,7 +68,6 @@ jobs:
           godot --headless --export-release "Android Release (AAB)" \
             builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB skipped"
 
-      # === Upload ===
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
