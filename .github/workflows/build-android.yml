@@ -1,4 +1,4 @@
-name: Build DOSCO Android (APK + AAB)
+name: Build DOSCO Android (APK + AAB) - Final
 
 on:
   push:
@@ -8,41 +8,34 @@ on:
 env:
   GODOT_VERSION: "4.3.0"
   EXPORT_NAME: "DOSCO"
+  TEMPLATES_VERSION: "4.3.stable"
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 70
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # === 1. Installation de .NET SDK et du workload Android ===
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
+      # === 1. Téléchargement Godot Standard (NON Mono) ===
+      - name: Download Godot Editor (Standard)
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+          unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+          chmod +x Godot_v${GODOT_VERSION}-stable_linux.x86_64
+          sudo mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
 
-      - name: Install .NET Android Workload
-        run: sudo dotnet workload install android
+      # === 2. Téléchargement + Installation des Export Templates Android ===
+      - name: Download and Install Export Templates
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates/${TEMPLATES_VERSION}
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz
+          unzip -q -o Godot_v${GODOT_VERSION}-stable_export_templates.tpz -d ~/.local/share/godot/export_templates/${TEMPLATES_VERSION}/
+          ls -la ~/.local/share/godot/export_templates/${TEMPLATES_VERSION}/
 
-      # === 2. Installation de Java JDK 17 ===
-      - name: Setup Java JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      # === 3. Configuration de Godot Engine (Version Mono) ===
-      - name: Setup Godot Mono
-        uses: chickensoft-games/setup-godot@v1
-        with:
-          version: ${{ env.GODOT_VERSION }}
-          use-mono: true
-          include-templates: true
-
-      # === 4. Configuration complète d'Android SDK ===
+      # === 3. Android SDK ===
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -51,9 +44,9 @@ jobs:
       - name: Install Android packages
         run: |
           sdkmanager --update
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-      # === 5. Génération et décodage des Keystores ===
+      # === 4. Keystores ===
       - name: Generate Debug Keystore
         run: |
           keytool -genkeypair -v \
@@ -72,59 +65,24 @@ jobs:
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > release.keystore
             chmod 600 release.keystore
+            echo "✅ Release keystore ready"
           fi
-
-      - name: Fallback Keystore Verification
-        run: |
-          if [ ! -f release.keystore ]; then
-            echo "Utilisation du keystore de debug comme fallback."
-            cp debug.keystore release.keystore
-          fi
-
-      # === 6. CORRECTION CRITIQUE : Fichier EditorSettings Godot 4 ===
-      - name: Configure Godot Editor Settings
-        run: |
-          mkdir -p ~/.config/godot
-          
-          # Godot 4 exige le suffixe "-4.tres" et une structure de ressource formelle
-          cat <<EOF > ~/.config/godot/editor_settings-4.tres
-          [gd_resource type="EditorSettings" format=3]
-          
-          [resource]
-          export/android/android_sdk_path = "${ANDROID_HOME}"
-          export/android/debug_keystore = "${GITHUB_WORKSPACE}/debug.keystore"
-          export/android/debug_keystore_user = "androiddebugkey"
-          export/android/debug_keystore_pass = "android"
-          export/android/shutdown_adb_on_exit = true
-          EOF
-          
-          # Par précaution, on clone le fichier pour la version mineure 4.3
-          cp ~/.config/godot/editor_settings-4.tres ~/.config/godot/editor_settings-4.3.tres
-
-      # === 7. Configuration dynamique des Presets ===
-      - name: Configure Keystore Secrets in Presets
-        env:
-          RELEASE_ALIAS: ${{ secrets.ANDROID_RELEASE_ALIAS || 'androiddebugkey' }}
-          RELEASE_PASSWORD: ${{ secrets.ANDROID_RELEASE_PASSWORD || 'android' }}
-        run: |
-          sed -i "s/RELEASE_ALIAS_PLACEHOLDER/$RELEASE_ALIAS/g" export_presets.cfg
-          sed -i "s/RELEASE_PASSWORD_PLACEHOLDER/$RELEASE_PASSWORD/g" export_presets.cfg
 
       - name: Create builds folder
         run: mkdir -p builds
 
-      # === 8. Exportations ===
-      - name: Export APK
+      # === 5. Export ===
+      - name: Export APK (Release)
         run: |
           godot --headless --export-release "Android Release (APK)" \
             builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.apk
 
-      - name: Export AAB
+      - name: Export AAB (Release)
         run: |
           godot --headless --export-release "Android Release (AAB)" \
-            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB skipped"
+            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB export skipped"
 
-      # === 9. Upload Artefacts ===
+      # === 6. Upload ===
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
