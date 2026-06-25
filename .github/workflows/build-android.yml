@@ -37,17 +37,17 @@ jobs:
           sdkmanager --update
           sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-      # ✅ CONFIG GODOT ANDROID (CRUCIAL)
+      # ✅ CONFIGURATION GODOT (VERSION SAFE YAML)
       - name: Configure Godot Android paths
         run: |
           mkdir -p ~/.config/godot
-           cat <<EOF > ~/.config/godot/editor_settings-4.tres
-            [export/android]
-            android_sdk_path="/usr/local/lib/android/sdk"
-            android_sdk_build_tools="34.0.0"
-            android_sdk_platform="android-34"
-            java_sdk_path="/usr/lib/jvm/java-17-openjdk-amd64"
-            EOF
+          cat <<EOF > ~/.config/godot/editor_settings-4.tres
+          [export/android]
+          android_sdk_path="/usr/local/lib/android/sdk"
+          android_sdk_build_tools="34.0.0"
+          android_sdk_platform="android-34"
+          java_sdk_path="/usr/lib/jvm/java-17-openjdk-amd64"
+          EOF
 
       # === Debug Keystore ===
       - name: Generate Debug Keystore
@@ -60,30 +60,15 @@ jobs:
             -storepass android -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      # ✅ RENDRE LE KEYSTORE VISIBLE A GODOT
+      # ✅ Rendre le keystore visible pour Godot
       - name: Move keystore for Godot
-        run: |
-          cp debug.keystore ./debug.keystore
-
-      # === Release Keystore (optionnel) ===
-      - name: Decode Release Keystore
-        continue-on-error: true
-        env:
-          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || '' }}
-        run: |
-          if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > release.keystore
-            chmod 600 release.keystore
-            echo "✅ Release keystore decoded"
-          else
-            echo "ℹ️ No release keystore provided - using debug keystore"
-          fi
+        run: cp debug.keystore debug.keystore
 
       # === Build Directory ===
       - name: Create builds directory
         run: mkdir -p builds
 
-      # ✅ VALIDATION (EVITE LES ERREURS CACHÉES)
+      # ✅ Validation rapide du projet
       - name: Validate project
         run: godot --headless --quit
 
@@ -97,7 +82,7 @@ jobs:
       - name: Export AAB (Release)
         run: |
           godot --headless --export-release "Android Release (AAB)" \
-          builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB export skipped"
+          builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB skipped"
 
       # === Upload APK ===
       - name: Upload APK
@@ -114,4 +99,3 @@ jobs:
           name: DOSCO-AAB-${{ github.run_number }}
           path: builds/*.aab
           retention-days: 30
-``
