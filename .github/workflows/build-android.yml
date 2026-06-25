@@ -37,6 +37,19 @@ jobs:
           sdkmanager --update
           sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
+      # ✅ CONFIG GODOT ANDROID (CRUCIAL)
+      - name: Configure Godot Android paths
+        run: |
+          mkdir -p ~/.config/godot
+          echo '
+          
+          [export/android]
+          android_sdk_path="/usr/local/lib/android/sdk"
+          android_sdk_build_tools="34.0.0"
+          android_sdk_platform="android-34"
+          java_sdk_path="/usr/lib/jvm/java-17-openjdk-amd64"
+          ' > ~/.config/godot/editor_settings-4.tres
+
       # === Debug Keystore ===
       - name: Generate Debug Keystore
         run: |
@@ -48,35 +61,46 @@ jobs:
             -storepass android -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      # === Release Keystore (sécurisé) ===
+      # ✅ RENDRE LE KEYSTORE VISIBLE A GODOT
+      - name: Move keystore for Godot
+        run: |
+          cp debug.keystore ./debug.keystore
+
+      # === Release Keystore (optionnel) ===
       - name: Decode Release Keystore
         continue-on-error: true
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || '' }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > release.keystore && \
-            chmod 600 release.keystore && \
-            echo "✅ Release keystore decoded successfully"
+            echo "$KEYSTORE_B64" | base64 -d > release.keystore
+            chmod 600 release.keystore
+            echo "✅ Release keystore decoded"
           else
             echo "ℹ️ No release keystore provided - using debug keystore"
           fi
 
-      # === Build ===
+      # === Build Directory ===
       - name: Create builds directory
         run: mkdir -p builds
 
+      # ✅ VALIDATION (EVITE LES ERREURS CACHÉES)
+      - name: Validate project
+        run: godot --headless --quit
+
+      # === EXPORT APK ===
       - name: Export APK (Release)
         run: |
           godot --headless --export-release "Android Release (APK)" \
-            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.apk
+          builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.apk
 
+      # === EXPORT AAB ===
       - name: Export AAB (Release)
         run: |
           godot --headless --export-release "Android Release (AAB)" \
-            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB export skipped or failed"
+          builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB export skipped"
 
-      # === Upload Artifacts ===
+      # === Upload APK ===
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
@@ -84,9 +108,11 @@ jobs:
           path: builds/*.apk
           retention-days: 30
 
+      # === Upload AAB ===
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: DOSCO-AAB-${{ github.run_number }}
           path: builds/*.aab
           retention-days: 30
+``
