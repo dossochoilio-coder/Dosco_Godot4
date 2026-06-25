@@ -49,7 +49,10 @@ func _submit() -> void:
     if _tab == "register":
         _pending_user = result["user"]
     else:
-        GameManager.login(result["user"])
+        GameManager.current_user = result["user"]
+        GameManager.user_logged_in.emit(result["user"])
+        GameManager.navigate("home")
+
 func _guest() -> void:
     lbl_error.text = ""
     HapticManager.light()
