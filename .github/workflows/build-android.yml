@@ -1,124 +1,86 @@
-name: Build DOSCO Android
+name: Build DOSCO Android (APK + AAB)
 
 on:
   push:
     branches: [main, master]
   workflow_dispatch:
 
+env:
+  GODOT_VERSION: "4.3.0"
+  EXPORT_NAME: "DOSCO"
+
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-22.04
-    container:
-      image: barichello/godot-ci:4.3
     timeout-minutes: 60
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # === Godot Setup ===
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v1
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          include-templates: true
+
+      # === Android SDK ===
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          cmdline-tools-version: "latest"
 
-      - name: Install Android platform
+      - name: Install Android SDK packages
         run: |
-          SDK="/github/home/.android/sdk"
-          mkdir -p "$SDK/platforms"
-          if [ -f "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
-            yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" \
-              --sdk_root="$SDK" \
-              "platforms;android-34" \
-              "build-tools;34.0.0" 2>&1 | tail -5
+          sdkmanager --update
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      # === Debug Keystore ===
+      - name: Generate Debug Keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 \
+            -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      # === Release Keystore (sécurisé) ===
+      - name: Decode Release Keystore
+        continue-on-error: true
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || '' }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > release.keystore && \
+            chmod 600 release.keystore && \
+            echo "✅ Release keystore decoded successfully"
           else
-            yes | sdkmanager \
-              --sdk_root="$SDK" \
-              "platforms;android-34" \
-              "build-tools;34.0.0" 2>&1 | tail -5
+            echo "ℹ️ No release keystore provided - using debug keystore"
           fi
-          echo "=== Platforms ==="
-          ls "$SDK/platforms/" 2>/dev/null || echo "MANQUANT"
 
-      - name: Find debug keystore
+      # === Build ===
+      - name: Create builds directory
+        run: mkdir -p builds
+
+      - name: Export APK (Release)
         run: |
-          KEYSTORE="/root/debug.keystore"
-          if [ ! -f "$KEYSTORE" ]; then
-            keytool -genkeypair \
-              -keystore "$KEYSTORE" \
-              -alias androiddebugkey \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass android -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US" \
-              -noprompt 2>/dev/null || true
-          fi
-          ls -lh "$KEYSTORE" 2>/dev/null || echo "Keystore absent"
+          godot --headless --export-release "Android Release (APK)" \
+            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.apk
 
-      - name: Install export templates
+      - name: Export AAB (Release)
         run: |
-          TDIR="/github/home/.local/share/godot/export_templates/4.3.stable"
-          mkdir -p "$TDIR"
-          ROOT_TDIR="/root/.local/share/godot/export_templates/4.3.stable"
-          if [ -f "$ROOT_TDIR/android_debug.apk" ]; then
-            cp "$ROOT_TDIR"/* "$TDIR/"
-            echo "Templates copiés depuis /root"
-          else
-            wget -q "https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz" -O /tmp/tpl.tpz
-            cd /tmp && unzip -q tpl.tpz
-            mv /tmp/templates/* "$TDIR/"
-          fi
-          echo "=== Templates Android ==="
-          ls "$TDIR/" | grep android
+          godot --headless --export-release "Android Release (AAB)" \
+            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB export skipped or failed"
 
-      - name: Write editor settings
-        run: |
-          SDK="/github/home/.android/sdk"
-          KEYSTORE="/root/debug.keystore"
-          JAVA="/__t/Java_Temurin-Hotspot_jdk/17.0.19-10/x64"
-          mkdir -p /root/.config/godot
-          printf '[gd_resource type="EditorSettings" format=3]\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/debug_keystore = "%s"\nexport/android/debug_keystore_user = "androiddebugkey"\nexport/android/debug_keystore_pass = "android"\nexport/android/java_sdk_path = "%s"\n' \
-            "$SDK" "$KEYSTORE" "$JAVA" \
-            > /root/.config/godot/editor_settings-4.tres
-          cat /root/.config/godot/editor_settings-4.tres
-
-      - name: Import project
-        run: |
-          godot --headless --editor --quit \
-            --path "$GITHUB_WORKSPACE" 2>&1 | tail -20 || true
-
-      - name: Create builds dir
-        run: mkdir -p "$GITHUB_WORKSPACE/builds"
-
-      - name: Export APK
-        run: |
-          SDK="/github/home/.android/sdk"
-          echo "=== Platforms ==="
-          ls "$SDK/platforms/" 2>/dev/null || echo "MANQUANT"
-          echo "=== Build-tools ==="
-          ls "$SDK/build-tools/" 2>/dev/null || echo "MANQUANT"
-          echo "=== Export ==="
-          godot --headless \
-            --export-debug "Android Release (APK)" \
-            "$GITHUB_WORKSPACE/builds/DOSCO_$GITHUB_RUN_NUMBER.apk" \
-            --path "$GITHUB_WORKSPACE" 2>&1
-          ls -lh "$GITHUB_WORKSPACE/builds/" || true
-
-      - name: Export AAB
-        run: |
-          godot --headless \
-            --export-debug "Android Release (AAB)" \
-            "$GITHUB_WORKSPACE/builds/DOSCO_$GITHUB_RUN_NUMBER.aab" \
-            --path "$GITHUB_WORKSPACE" 2>&1 || true
-
+      # === Upload Artifacts ===
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: DOSCO-APK-${{ github.run_number }}
           path: builds/*.apk
-          if-no-files-found: warn
           retention-days: 30
 
       - name: Upload AAB
@@ -126,15 +88,4 @@ jobs:
         with:
           name: DOSCO-AAB-${{ github.run_number }}
           path: builds/*.aab
-          if-no-files-found: warn
           retention-days: 30
-
-      - name: Create GitHub Release
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: "DOSCO v1.0.${{ github.run_number }}"
-          files: builds/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
