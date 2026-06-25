@@ -48,15 +48,21 @@ func deselect() -> void:
 	valid_moves = []
 	valid_captures = []
 
-func apply_move(from_coord: String, to_coord: String) -> bool:
-	if from_coord.is_empty() or to_coord.is_empty(): return false
-	if not board.has(from_coord): return false
-	if board[from_coord]["color"] != turn: return false
+func apply_move(from_c: String, to_c: String) -> bool:
+    if not board.has(from_c):
+        return false
 
-	var mv_data := Rules.get_moves(from_coord, board)
-	var is_capture := to_coord in mv_data["captures"]
-	var is_move    := to_coord in mv_data["moves"]
-	if not is_capture and not is_move: return false
+    var piece: Dictionary = board[from_c]
+    board.erase(from_c)
+    board[to_c] = piece
+
+    if to_c in valid_captures:
+        moves_since_capture = 0
+    else:
+        moves_since_capture += 1
+
+    last_move = to_c
+    return true
 
 	# Capture obligatoire
 	var all_mv := Rules.get_all_moves(turn, board)
