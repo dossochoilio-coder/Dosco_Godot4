@@ -1,4 +1,4 @@
-name: Build DOSCO Android APK AAB
+name: Build DOSCO Android
 
 on:
   push:
@@ -13,11 +13,12 @@ env:
 
 jobs:
   build:
+    name: Build Android APK and AAB
     runs-on: ubuntu-22.04
     timeout-minutes: 60
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Godot
@@ -38,17 +39,7 @@ jobs:
           sdkmanager --update
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmdline-tools;latest"
 
-      - name: Configure Godot Android editor settings
-        run: |
-          mkdir -p "$HOME/.config/godot"
-          printf '%s\n' '[gd_resource type="EditorSettings" format=3]' > "$HOME/.config/godot/editor_settings-4.tres"
-          printf '%s\n' '' >> "$HOME/.config/godot/editor_settings-4.tres"
-          printf '%s\n' '[resource]' >> "$HOME/.config/godot/editor_settings-4.tres"
-          printf '%s\n' 'export/android/android_sdk_path = "/usr/local/lib/android/sdk"' >> "$HOME/.config/godot/editor_settings-4.tres"
-          printf '%s\n' 'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' >> "$HOME/.config/godot/editor_settings-4.tres"
-          cat "$HOME/.config/godot/editor_settings-4.tres"
-
-      - name: Generate Debug Keystore
+      - name: Generate debug keystore
         run: |
           keytool -genkeypair -v \
             -keystore debug.keystore \
@@ -59,53 +50,63 @@ jobs:
             -storepass android \
             -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
-          ls -la debug.keystore
 
-      - name: Patch export_presets.cfg
+      - name: Clean Android signing lines in export presets
         run: |
-          perl -0pi -e 's/^keystore\/(debug|debug_user|debug_password|debug_path|release|release_user|release_password)=.*\n?//mg' export_presets.cfg
-          perl -0pi -e 's/^package\/signed=(true|false)/package\/signed=true/mg' export_presets.cfg
-          python3 -c "from pathlib import Path; import os; p=Path('export_presets.cfg'); t=p.read_text(); ks=os.environ['GITHUB_WORKSPACE'] + '/debug.keystore'; block='keystore/debug=\"' + ks + '\"\\nkeystore/debug_user=\"androiddebugkey\"\\nkeystore/debug_password=\"android\"\\nkeystore/release=\"' + ks + '\"\\nkeystore/release_user=\"androiddebugkey\"\\nkeystore/release_password=\"android\"\\n'; t=t.replace('package/classify_as_game=true\\n', 'package/classify_as_game=true\\n' + block + '\\n'); p.write_text(t)"
-          echo "=== Keystore lines ==="
-          grep -n "keystore/" export_presets.cfg || true
-          echo "=== Signed lines ==="
+          sed -i '/^keystore\//d' export_presets.cfg
+          sed -i 's/package\/signed=false/package\/signed=true/g' export_presets.cfg
+          echo "=== package signed lines ==="
           grep -n "package/signed" export_presets.cfg || true
+          echo "=== keystore lines after cleanup ==="
+          grep -n "keystore/" export_presets.cfg || true
 
       - name: Create builds directory
         run: |
           mkdir -p builds
 
-      - name: Show Godot and Android info
+      - name: Show tool versions
         run: |
           godot --version
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          ls -la /usr/local/lib/android/sdk
-          ls -la /usr/lib/jvm
+          echo "ANDROID_HOME=${ANDROID_HOME}"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}"
+          ls -la debug.keystore
 
-      - name: Validate project
+      - name: Validate Godot project
         run: |
-          godot --headless --verbose --quit
+          godot --headless --quit
 
-      - name: Export APK Release
+      - name: Export APK
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: "${{ github.workspace }}/debug.keystore"
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: "androiddebugkey"
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: "android"
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: "${{ github.workspace }}/debug.keystore"
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: "androiddebugkey"
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: "android"
         run: |
           godot --headless --verbose --export-release "Android Release (APK)" "builds/${EXPORT_NAME}_${GITHUB_RUN_NUMBER}.apk"
 
-      - name: Export AAB Release
+      - name: Export AAB
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: "${{ github.workspace }}/debug.keystore"
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: "androiddebugkey"
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: "android"
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: "${{ github.workspace }}/debug.keystore"
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: "androiddebugkey"
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: "android"
         run: |
           godot --headless --verbose --export-release "Android Release (AAB)" "builds/${EXPORT_NAME}_${GITHUB_RUN_NUMBER}.aab"
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DOSCO-APK-${{ github.run_number }}
+          name: DOSCO-APK
           path: builds/*.apk
           retention-days: 30
 
-      - name: Upload AAB
+      - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DOSCO-AAB-${{ github.run_number }}
+          name: DOSCO-AAB
           path: builds/*.aab
           retention-days: 30
-``
