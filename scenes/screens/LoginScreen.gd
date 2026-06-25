@@ -54,4 +54,12 @@ func _guest() -> void:
     lbl_error.text = ""
     HapticManager.light()
     AudioManager.sfx_click()
-    lbl_error.text = "Mode invité non encore configuré."
+
+    var guest_user := {
+        "name": "Guest",
+        "uid": "guest"
+    }
+
+    GameManager.current_user = guest_user
+    GameManager.user_logged_in.emit(guest_user)
+    GameManager.navigate("home")
