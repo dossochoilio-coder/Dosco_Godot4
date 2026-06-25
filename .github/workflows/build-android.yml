@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 env:
+  GODOT_VERSION: "4.3.0"
   EXPORT_NAME: "DOSCO"
 
 jobs:
@@ -17,13 +18,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # === Téléchargement Godot standard (NON Mono) ===
-      - name: Download Godot 4.3 (standard)
-        run: |
-          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
-          unzip -q Godot_v4.3-stable_linux.x86_64.zip
-          chmod +x Godot_v4.3-stable_linux.x86_64
-          sudo mv Godot_v4.3-stable_linux.x86_64 /usr/local/bin/godot
+      # === Godot + Export Templates (version standard) ===
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v1
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          include-templates: true
 
       # === Android SDK ===
       - name: Setup Android SDK
