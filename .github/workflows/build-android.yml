@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 
 env:
-  GODOT_VERSION: "4.3.0"
   EXPORT_NAME: "DOSCO"
 
 jobs:
@@ -18,13 +17,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Godot (version standard - non Mono)
-        uses: chickensoft-games/setup-godot@v1
-        with:
-          version: ${{ env.GODOT_VERSION }}
-          include-templates: true
-          godot-sharp-release: false
+      # === Téléchargement Godot standard (NON Mono) ===
+      - name: Download Godot 4.3 (standard)
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
+          unzip -q Godot_v4.3-stable_linux.x86_64.zip
+          chmod +x Godot_v4.3-stable_linux.x86_64
+          sudo mv Godot_v4.3-stable_linux.x86_64 /usr/local/bin/godot
 
+      # === Android SDK ===
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -35,6 +36,7 @@ jobs:
           sdkmanager --update
           sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
+      # === Keystores ===
       - name: Generate Debug Keystore
         run: |
           keytool -genkeypair -v \
@@ -58,6 +60,7 @@ jobs:
       - name: Create builds folder
         run: mkdir -p builds
 
+      # === Export ===
       - name: Export APK
         run: |
           godot --headless --export-release "Android Release (APK)" \
@@ -68,6 +71,7 @@ jobs:
           godot --headless --export-release "Android Release (AAB)" \
             builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB skipped"
 
+      # === Upload ===
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
