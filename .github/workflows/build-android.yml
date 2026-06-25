@@ -18,7 +18,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # === Godot Setup ===
+      # === Godot Setup - NON MONO ===
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v1
         with:
@@ -34,20 +34,9 @@ jobs:
 
       - name: Install Android SDK packages
         run: |
+          yes | sdkmanager --licenses
           sdkmanager --update
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
-
-      # ✅ CONFIGURATION GODOT (VERSION SAFE YAML)
-      - name: Configure Godot Android paths
-        run: |
-          mkdir -p ~/.config/godot
-          cat <<EOF > ~/.config/godot/editor_settings-4.tres
-          [export/android]
-          android_sdk_path="/usr/local/lib/android/sdk"
-          android_sdk_build_tools="34.0.0"
-          android_sdk_platform="android-34"
-          java_sdk_path="/usr/lib/jvm/java-17-openjdk-amd64"
-          EOF
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmdline-tools;latest"
 
       # === Debug Keystore ===
       - name: Generate Debug Keystore
@@ -55,30 +44,78 @@ jobs:
           keytool -genkeypair -v \
             -keystore debug.keystore \
             -alias androiddebugkey \
-            -keyalg RSA -keysize 2048 \
+            -keyalg RSA \
+            -keysize 2048 \
             -validity 10000 \
-            -storepass android -keypass android \
+            -storepass android \
+            -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
+
+      # === Patch export_presets.cfg for GitHub Actions ===
+      - name: Patch export_presets.cfg keystore paths
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          preset = Path("export_presets.cfg")
+          text = preset.read_text()
+
+          workspace = os.environ["GITHUB_WORKSPACE"]
+          keystore_path = f"{workspace}/debug.keystore"
+
+          # Remove all existing keystore lines to avoid partial config errors.
+          text = re.sub(r'(?m)^keystore/(debug|debug_user|debug_password|release|release_user|release_password|debug_path)=.*\n?', '', text)
+
+          # Force signed package.
+          text = re.sub(r'package/signed=(true|false)', 'package/signed=true', text)
+
+          keystore_block = (
+              f'keystore/debug="{keystore_path}"\n'
+              f'keystore/debug_user="androiddebugkey"\n'
+              f'keystore/debug_password="android"\n'
+              f'keystore/release="{keystore_path}"\n'
+              f'keystore/release_user="androiddebugkey"\n'
+              f'keystore/release_password="android"\n'
+          )
+
+          # Insert keystore block after package/classify_as_game=true in each Android preset options section.
+          text = text.replace(
+              'package/classify_as_game=true\n',
+              'package/classify_as_game=true\n' + keystore_block + '\n'
+          )
+
+          preset.write_text(text)
+          PY
+
+      # === Debug preset content ===
+      - name: Show keystore lines
+        run: |
+          echo "=== Keystore lines in export_presets.cfg ==="
+          grep -n "keystore/" export_presets.cfg || true
+          echo "=== Godot version ==="
+          godot --version
 
       # === Build Directory ===
       - name: Create builds directory
         run: mkdir -p builds
 
-      # ✅ Validation rapide du projet
+      # === Validate Project ===
       - name: Validate project
         run: godot --headless --quit
 
-      # === EXPORT APK ===
+      # === Export APK ===
       - name: Export APK (Release)
         run: |
           godot --headless --export-release "Android Release (APK)" \
-          builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.apk
+            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.apk
 
-      # === EXPORT AAB ===
+      # === Export AAB ===
       - name: Export AAB (Release)
         run: |
           godot --headless --export-release "Android Release (AAB)" \
-          builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB skipped"
+            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab
 
       # === Upload APK ===
       - name: Upload APK
