@@ -121,4 +121,3 @@ func _on_subscribe_chosen(plan_id: String) -> void:
 
 func _on_skip_subscription() -> void:
     GameManager.login(_pending_user)
-``
