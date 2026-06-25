@@ -1,4 +1,4 @@
-name: Build DOSCO Android (APK + AAB) - Final
+name: Build DOSCO Android (APK + AAB) - Final V2
 
 on:
   push:
@@ -6,9 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  GODOT_VERSION: "4.3.0"
   EXPORT_NAME: "DOSCO"
-  TEMPLATES_VERSION: "4.3.stable"
 
 jobs:
   build:
@@ -19,23 +17,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # === 1. Téléchargement Godot Standard (NON Mono) ===
+      # === Godot Editor (Standard) ===
       - name: Download Godot Editor (Standard)
         run: |
-          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
-          unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
-          chmod +x Godot_v${GODOT_VERSION}-stable_linux.x86_64
-          sudo mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
+          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
+          unzip -q Godot_v4.3-stable_linux.x86_64.zip
+          chmod +x Godot_v4.3-stable_linux.x86_64
+          sudo mv Godot_v4.3-stable_linux.x86_64 /usr/local/bin/godot
 
-      # === 2. Téléchargement + Installation des Export Templates Android ===
+      # === Export Templates Android ===
       - name: Download and Install Export Templates
         run: |
-          mkdir -p ~/.local/share/godot/export_templates/${TEMPLATES_VERSION}
-          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz
-          unzip -q -o Godot_v${GODOT_VERSION}-stable_export_templates.tpz -d ~/.local/share/godot/export_templates/${TEMPLATES_VERSION}/
-          ls -la ~/.local/share/godot/export_templates/${TEMPLATES_VERSION}/
+          mkdir -p ~/.local/share/godot/export_templates/4.3.stable
+          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
+          unzip -q -o Godot_v4.3-stable_export_templates.tpz -d ~/.local/share/godot/export_templates/4.3.stable/
+          echo "✅ Templates installed"
 
-      # === 3. Android SDK ===
+      # === Android SDK ===
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -46,7 +44,7 @@ jobs:
           sdkmanager --update
           sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-      # === 4. Keystores ===
+      # === Keystores ===
       - name: Generate Debug Keystore
         run: |
           keytool -genkeypair -v \
@@ -71,18 +69,18 @@ jobs:
       - name: Create builds folder
         run: mkdir -p builds
 
-      # === 5. Export ===
-      - name: Export APK (Release)
+      # === Export ===
+      - name: Export APK
         run: |
           godot --headless --export-release "Android Release (APK)" \
             builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.apk
 
-      - name: Export AAB (Release)
+      - name: Export AAB
         run: |
           godot --headless --export-release "Android Release (AAB)" \
-            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB export skipped"
+            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB skipped"
 
-      # === 6. Upload ===
+      # === Upload ===
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
