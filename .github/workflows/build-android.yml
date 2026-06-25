@@ -1,8 +1,10 @@
-name: Build DOSCO Android (APK + AAB)
+name: Build DOSCO Android APK AAB
 
 on:
   push:
-    branches: [main, master]
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 env:
@@ -18,15 +20,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # === Godot Setup - version standard, pas Mono ===
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v1
         with:
-          version: 4.3.0
+          version: "4.3.0"
           use-dotnet: false
           include-templates: true
 
-      # === Android SDK ===
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -38,23 +38,16 @@ jobs:
           sdkmanager --update
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmdline-tools;latest"
 
-      # === Configure Godot editor settings - FORMAT .tres VALIDE ===
       - name: Configure Godot Android editor settings
         run: |
-          mkdir -p ~/.config/godot
+          mkdir -p "$HOME/.config/godot"
+          printf '%s\n' '[gd_resource type="EditorSettings" format=3]' > "$HOME/.config/godot/editor_settings-4.tres"
+          printf '%s\n' '' >> "$HOME/.config/godot/editor_settings-4.tres"
+          printf '%s\n' '[resource]' >> "$HOME/.config/godot/editor_settings-4.tres"
+          printf '%s\n' 'export/android/android_sdk_path = "/usr/local/lib/android/sdk"' >> "$HOME/.config/godot/editor_settings-4.tres"
+          printf '%s\n' 'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' >> "$HOME/.config/godot/editor_settings-4.tres"
+          cat "$HOME/.config/godot/editor_settings-4.tres"
 
-          cat > ~/.config/godot/editor_settings-4.tres <<'EOF'
-[gd_resource type="EditorSettings" format=3]
-
-[resource]
-export/android/android_sdk_path = "/usr/local/lib/android/sdk"
-export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"
-EOF
-
-          echo "=== editor_settings-4.tres ==="
-          cat ~/.config/godot/editor_settings-4.tres
-
-      # === Debug Keystore ===
       - name: Generate Debug Keystore
         run: |
           keytool -genkeypair -v \
@@ -66,92 +59,42 @@ EOF
             -storepass android \
             -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
-
-          echo "=== Keystore created ==="
           ls -la debug.keystore
 
-      # === Patch export_presets.cfg for CI ===
       - name: Patch export_presets.cfg
         run: |
-          python3 <<'PY'
-          from pathlib import Path
-          import os
-          import re
-
-          preset_path = Path("export_presets.cfg")
-          text = preset_path.read_text()
-
-          workspace = os.environ["GITHUB_WORKSPACE"]
-          keystore = f"{workspace}/debug.keystore"
-
-          # Nettoyer toutes les anciennes lignes keystore pour éviter les configurations partielles.
-          text = re.sub(
-              r'(?m)^keystore/(debug|debug_user|debug_password|debug_path|release|release_user|release_password)=.*\n?',
-              '',
-              text
-          )
-
-          # Forcer la signature.
-          text = re.sub(
-              r'(?m)^package/signed=(true|false)',
-              'package/signed=true',
-              text
-          )
-
-          keystore_block = (
-              f'keystore/debug="{keystore}"\n'
-              f'keystore/debug_user="androiddebugkey"\n'
-              f'keystore/debug_password="android"\n'
-              f'keystore/release="{keystore}"\n'
-              f'keystore/release_user="androiddebugkey"\n'
-              f'keystore/release_password="android"\n'
-          )
-
-          # Ajouter le bloc keystore dans chaque preset Android, juste après package/classify_as_game=true.
-          text = text.replace(
-              'package/classify_as_game=true\n',
-              'package/classify_as_game=true\n' + keystore_block + '\n'
-          )
-
-          preset_path.write_text(text)
-          PY
-
-          echo "=== Patched export_presets.cfg keystore lines ==="
+          perl -0pi -e 's/^keystore\/(debug|debug_user|debug_password|debug_path|release|release_user|release_password)=.*\n?//mg' export_presets.cfg
+          perl -0pi -e 's/^package\/signed=(true|false)/package\/signed=true/mg' export_presets.cfg
+          python3 -c "from pathlib import Path; import os; p=Path('export_presets.cfg'); t=p.read_text(); ks=os.environ['GITHUB_WORKSPACE'] + '/debug.keystore'; block='keystore/debug=\"' + ks + '\"\\nkeystore/debug_user=\"androiddebugkey\"\\nkeystore/debug_password=\"android\"\\nkeystore/release=\"' + ks + '\"\\nkeystore/release_user=\"androiddebugkey\"\\nkeystore/release_password=\"android\"\\n'; t=t.replace('package/classify_as_game=true\\n', 'package/classify_as_game=true\\n' + block + '\\n'); p.write_text(t)"
+          echo "=== Keystore lines ==="
           grep -n "keystore/" export_presets.cfg || true
-
-          echo "=== Package signed lines ==="
+          echo "=== Signed lines ==="
           grep -n "package/signed" export_presets.cfg || true
 
-      # === Build Directory ===
       - name: Create builds directory
-        run: mkdir -p builds
+        run: |
+          mkdir -p builds
 
-      # === Check Godot configuration ===
-      - name: Show Godot version
+      - name: Show Godot and Android info
         run: |
           godot --version
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          ls -la /usr/local/lib/android/sdk || true
-          ls -la /usr/lib/jvm || true
+          ls -la /usr/local/lib/android/sdk
+          ls -la /usr/lib/jvm
 
-      # === Validate Project ===
       - name: Validate project
-        run: godot --headless --verbose --quit
-
-      # === Export APK ===
-      - name: Export APK (Release)
         run: |
-          godot --headless --verbose --export-release "Android Release (APK)" \
-            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.apk
+          godot --headless --verbose --quit
 
-      # === Export AAB ===
-      - name: Export AAB (Release)
+      - name: Export APK Release
         run: |
-          godot --headless --verbose --export-release "Android Release (AAB)" \
-            builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab
+          godot --headless --verbose --export-release "Android Release (APK)" "builds/${EXPORT_NAME}_${GITHUB_RUN_NUMBER}.apk"
 
-      # === Upload APK ===
+      - name: Export AAB Release
+        run: |
+          godot --headless --verbose --export-release "Android Release (AAB)" "builds/${EXPORT_NAME}_${GITHUB_RUN_NUMBER}.aab"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
@@ -159,7 +102,6 @@ EOF
           path: builds/*.apk
           retention-days: 30
 
-      # === Upload AAB ===
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
