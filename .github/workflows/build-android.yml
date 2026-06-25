@@ -60,10 +60,6 @@ jobs:
             -storepass android -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      # ✅ Rendre le keystore visible pour Godot
-      - name: Move keystore for Godot
-        run: cp debug.keystore debug.keystore
-
       # === Build Directory ===
       - name: Create builds directory
         run: mkdir -p builds
