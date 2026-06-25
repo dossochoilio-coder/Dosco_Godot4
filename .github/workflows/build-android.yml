@@ -22,7 +22,8 @@ jobs:
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v1
         with:
-          version: ${{ env.GODOT_VERSION }}
+          version: 4.3.0
+          use-dotnet: false
           include-templates: true
 
       # === Android SDK ===
