@@ -30,15 +30,25 @@ func _set_tab(t: String) -> void:
 
 func _submit() -> void:
     lbl_error.text = ""
+
     var name_val := field_name.text.strip_edges()
+
     HapticManager.light()
     AudioManager.sfx_click()
 
     var result: Dictionary
+
     if _tab == "register":
-        result = AuthDB.register(name_val, field_email.text.strip_edges(), field_pass.text)
+        result = AuthDB.register(
+            name_val,
+            field_email.text.strip_edges(),
+            field_pass.text
+        )
     else:
-        result = AuthDB.login(name_val, field_pass.text)
+        result = AuthDB.login(
+            name_val,
+            field_pass.text
+        )
 
     if result.has("error"):
         lbl_error.text = result["error"]
@@ -46,21 +56,24 @@ func _submit() -> void:
         return
 
     AudioManager.sfx_victory()
+
     if _tab == "register":
         _pending_user = result["user"]
     else:
-    GameManager.current_user = result["user"]
-    GameManager.user_logged_in.emit(result["user"])
-    GameManager.navigate("home")
+        GameManager.current_user = result["user"]
+        GameManager.user_logged_in.emit(result["user"])
+        GameManager.navigate("home")
 
 func _guest() -> void:
     lbl_error.text = ""
+
     HapticManager.light()
     AudioManager.sfx_click()
 
     var guest_user := {
+        "uid": "guest",
         "name": "Guest",
-        "uid": "guest"
+        "guest": true
     }
 
     GameManager.current_user = guest_user
