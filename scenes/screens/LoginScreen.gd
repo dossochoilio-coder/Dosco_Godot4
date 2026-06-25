@@ -50,3 +50,8 @@ func _submit() -> void:
         _pending_user = result["user"]
     else:
         GameManager.login(result["user"])
+func _guest() -> void:
+    lbl_error.text = ""
+    HapticManager.light()
+    AudioManager.sfx_click()
+    lbl_error.text = "Mode invité non encore configuré."
