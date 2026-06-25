@@ -41,14 +41,13 @@ jobs:
       - name: Configure Godot Android paths
         run: |
           mkdir -p ~/.config/godot
-          echo '
-          
-          [export/android]
-          android_sdk_path="/usr/local/lib/android/sdk"
-          android_sdk_build_tools="34.0.0"
-          android_sdk_platform="android-34"
-          java_sdk_path="/usr/lib/jvm/java-17-openjdk-amd64"
-          ' > ~/.config/godot/editor_settings-4.tres
+           cat <<EOF > ~/.config/godot/editor_settings-4.tres
+            [export/android]
+            android_sdk_path="/usr/local/lib/android/sdk"
+            android_sdk_build_tools="34.0.0"
+            android_sdk_platform="android-34"
+            java_sdk_path="/usr/lib/jvm/java-17-openjdk-amd64"
+            EOF
 
       # === Debug Keystore ===
       - name: Generate Debug Keystore
