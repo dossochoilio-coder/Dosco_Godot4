@@ -88,4 +88,4 @@ jobs:
         with:
           name: DOSCO-AAB-${{ github.run_number }}
           path: builds/*.aab
-          retention-days: 31
+          retention-days: 30
