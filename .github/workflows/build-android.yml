@@ -18,20 +18,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # === 1. Installation de .NET SDK (Crucial pour Godot Mono) ===
+      # === 1. Installation de .NET SDK (Obligatoire pour l'architecture C# de Godot Mono) ===
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      # === 2. Installation de Java JDK 17 (Requis pour Android SDK) ===
+      # === 2. Installation de Java JDK 17 (Requis pour exécuter l'outil de build Gradle d'Android) ===
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # === 3. Configuration de Godot Engine (Version Mono) ===
+      # === 3. Installation et configuration de Godot Engine (Version Mono) ===
       - name: Setup Godot Mono
         uses: chickensoft-games/setup-godot@v1
         with:
@@ -39,7 +39,7 @@ jobs:
           use-mono: true
           include-templates: true
 
-      # === 4. Configuration complète d'Android SDK ===
+      # === 4. Configuration complète du SDK Android ===
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -50,7 +50,7 @@ jobs:
           sdkmanager --update
           sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
 
-      # === 5. Fix Master : Injection du chemin SDK dans Godot ===
+      # === 5. Résolution de l'erreur EditorSettings (android_sdk_path global) ===
       - name: Configure Godot Editor Settings
         run: |
           mkdir -p ~/.config/godot
@@ -58,7 +58,7 @@ jobs:
           echo 'export/android/android_sdk_path = "'"$ANDROID_HOME"'"' >> ~/.config/godot/editor_settings.tres
           echo 'export/android/shutdown_adb_on_exit = true' >> ~/.config/godot/editor_settings.tres
 
-      # === 6. Génération et décodage des Keystores ===
+      # === 6. Génération et décodage des certificats Keystore ===
       - name: Generate Debug Keystore
         run: |
           keytool -genkeypair -v \
@@ -79,10 +79,28 @@ jobs:
             chmod 600 release.keystore
           fi
 
+      # Sécurité CI/CD : Si aucun Keystore de Release n'est fourni dans les secrets GitHub,
+      # on utilise le Keystore de Debug comme alias de secours pour éviter que l'export échoue.
+      - name: Fallback Keystore Verification
+        run: |
+          if [ ! -f release.keystore ]; then
+            echo "Aucun keystore de release détecté dans les secrets. Utilisation du keystore de debug comme fallback."
+            cp debug.keystore release.keystore
+          fi
+
+      # Remplacement dynamique des placeholders textuels par vos valeurs de production ou par les fallbacks de débug
+      - name: Configure Keystore Secrets in Presets
+        env:
+          RELEASE_ALIAS: ${{ secrets.ANDROID_RELEASE_ALIAS || 'androiddebugkey' }}
+          RELEASE_PASSWORD: ${{ secrets.ANDROID_RELEASE_PASSWORD || 'android' }}
+        run: |
+          sed -i "s/RELEASE_ALIAS_PLACEHOLDER/$RELEASE_ALIAS/g" export_presets.cfg
+          sed -i "s/RELEASE_PASSWORD_PLACEHOLDER/$RELEASE_PASSWORD/g" export_presets.cfg
+
       - name: Create builds folder
         run: mkdir -p builds
 
-      # === 7. Exportations ===
+      # === 7. Phases d'exportations headless ===
       - name: Export APK
         run: |
           godot --headless --export-release "Android Release (APK)" \
@@ -93,7 +111,7 @@ jobs:
           godot --headless --export-release "Android Release (AAB)" \
             builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB skipped"
 
-      # === 8. Sauvegarde des Artefacts ===
+      # === 8. Publication des fichiers générés ===
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
