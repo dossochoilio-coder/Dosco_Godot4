@@ -83,6 +83,11 @@ jobs:
           GODOT_ANDROID_KEYSTORE_RELEASE_PATH: "${{ github.workspace }}/debug.keystore"
           GODOT_ANDROID_KEYSTORE_RELEASE_USER: "androiddebugkey"
           GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: "android"
+          
+          # ✅ AJOUT CRITIQUE
+          GODOT_ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+          GODOT_ANDROID_JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+
         run: |
           godot --headless --verbose --export-release "Android Release (APK)" "builds/${EXPORT_NAME}_${GITHUB_RUN_NUMBER}.apk"
 
@@ -94,6 +99,11 @@ jobs:
           GODOT_ANDROID_KEYSTORE_RELEASE_PATH: "${{ github.workspace }}/debug.keystore"
           GODOT_ANDROID_KEYSTORE_RELEASE_USER: "androiddebugkey"
           GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: "android"
+
+        # ✅ AJOUT CRITIQUE
+          GODOT_ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+          GODOT_ANDROID_JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+
         run: |
           godot --headless --verbose --export-release "Android Release (AAB)" "builds/${EXPORT_NAME}_${GITHUB_RUN_NUMBER}.aab"
 
