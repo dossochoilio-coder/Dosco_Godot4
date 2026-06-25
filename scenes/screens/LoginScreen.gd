@@ -49,9 +49,9 @@ func _submit() -> void:
     if _tab == "register":
         _pending_user = result["user"]
     else:
-        GameManager.current_user = result["user"]
-        GameManager.user_logged_in.emit(result["user"])
-        GameManager.navigate("home")
+    GameManager.current_user = result["user"]
+    GameManager.user_logged_in.emit(result["user"])
+    GameManager.navigate("home")
 
 func _guest() -> void:
     lbl_error.text = ""
