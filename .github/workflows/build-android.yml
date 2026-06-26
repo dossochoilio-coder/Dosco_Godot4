@@ -38,7 +38,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          sdkmanager --install "cmdline-tools;latest" "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmake;3.10.2.4988404" "ndk;23.2.8568313"
           yes | sdkmanager --licenses > /dev/null || true
 
       - name: Download Godot editor
@@ -60,7 +60,8 @@ jobs:
           unzip -q -o "Godot_v${GODOT_RELEASE}_export_templates.tpz"
           cp templates/android_debug.apk "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_debug.apk"
           cp templates/android_release.apk "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_release.apk"
-          ls -la "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          test -f "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_debug.apk"
+          test -f "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_release.apk"
 
       - name: Configure Godot Android paths
         shell: bash
@@ -71,7 +72,7 @@ jobs:
           echo '[gd_resource type="EditorSettings" format=3]' > "$SETTINGS_FILE"
           echo '[resource]' >> "$SETTINGS_FILE"
           echo "export/android/java_sdk_path = \"$JAVA_HOME\"" >> "$SETTINGS_FILE"
-          echo "export/android/android_sdk_path = \"$ANDROID_SDK_ROOT\"" >> "$SETTINGS_FILE"
+          echo "export/android/android_sdk_path = \"$ANDROID_HOME\"" >> "$SETTINGS_FILE"
           cat "$SETTINGS_FILE"
 
       - name: Generate Android keystores
@@ -83,17 +84,32 @@ jobs:
           keytool -list -keystore release.keystore -alias dosco -storepass android
           keytool -list -keystore debug.keystore -alias androiddebugkey -storepass android
 
-      - name: Validate files before export
+      - name: Validate files before import and export
         shell: bash
         run: |
           set -e
+          test -f project.godot
           test -f export_presets.cfg
           test -f release.keystore
           test -f debug.keystore
           grep -n 'name="Android Release (APK)"' export_presets.cfg
           grep -n 'gradle_build/export_format=0' export_presets.cfg
-          grep -n 'keystore/release="release.keystore"' export_presets.cfg
+          grep -n 'gradle_build/use_gradle_build=false' export_presets.cfg
           grep -n 'keystore/debug="debug.keystore"' export_presets.cfg
+          grep -n 'keystore/debug_user="androiddebugkey"' export_presets.cfg
+          grep -n 'keystore/debug_password="android"' export_presets.cfg
+          grep -n 'keystore/release="release.keystore"' export_presets.cfg
+          grep -n 'keystore/release_user="dosco"' export_presets.cfg
+          grep -n 'keystore/release_password="android"' export_presets.cfg
+          test -f assets/icon_192.png
+          test -f assets/adaptive_foreground.png
+          test -f assets/adaptive_background.png
+
+      - name: Import project once before export
+        shell: bash
+        run: |
+          set -e
+          godot --headless --editor --quit
 
       - name: Export APK
         shell: bash
