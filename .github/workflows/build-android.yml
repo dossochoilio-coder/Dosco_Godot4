@@ -1,125 +1,78 @@
-name: Build DOSCO Android APK
+[preset.0] 
+name="Android Release (APK)"
+platform="Android"
+runnable=true
+advanced_options=false
+dedicated_server=false
+custom_features=""
+export_filter="all_resources"
+include_filter=""
+exclude_filter=""
+export_path="builds/dosco.apk"
+encryption_include_filters=""
+encryption_exclude_filters=""
+encrypt_pck=false
+encrypt_directory=false
+script_export_mode=2
 
-on:
-  push:
-    branches:
-      - main
-      - master
-  workflow_dispatch:
+[preset.0.options]
+custom_template/debug=""
+custom_template/release=""
+gradle_build/use_gradle_build=false
+gradle_build/gradle_build_directory=""
+gradle_build/android_source_template=""
+gradle_build/compress_native_libraries=false
+gradle_build/export_format=0
+gradle_build/min_sdk=""
+gradle_build/target_sdk=""
 
-env:
-  GODOT_VERSION: "4.3"
-  GODOT_RELEASE: "4.3-stable"
-  EXPORT_NAME: "DOSCO"
-  EXPORT_PRESET: "Android Release (APK)"
+architectures/armeabi-v7a=false
+architectures/arm64-v8a=true
+architectures/x86=false
+architectures/x86_64=false
 
-jobs:
-  build:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 70
+version/code=1
+version/name="1.0"
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+package/unique_name="com.dosco.labatailledesetoiles"
+package/name="DOSCO"
+package/signed=true
+package/app_category=2
+package/retain_data_on_uninstall=false
+package/exclude_from_recents=false
+package/show_in_android_tv=false
+package/show_in_app_library=true
+package/show_as_launcher_app=true
 
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
+keystore/debug="debug.keystore"
+keystore/debug_user="androiddebugkey"
+keystore/debug_password="android"
+keystore/release="release.keystore"
+keystore/release_user="dosco"
+keystore/release_password="android"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: "latest"
+launcher_icons/main_192x192="res://assets/icon_192.png"
+launcher_icons/adaptive_foreground_432x432="res://assets/adaptive_foreground.png"
+launcher_icons/adaptive_background_432x432="res://assets/adaptive_background.png"
 
-      - name: Install Android packages
-        shell: bash
-        run: |
-          set -euo pipefail
-          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-          yes | sdkmanager --licenses >/dev/null || true
+graphics/opengl_debug=false
+xr_features/xr_mode=0
 
-      - name: Download Godot Editor
-        shell: bash
-        run: |
-          set -euo pipefail
-          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
-          unzip -q "Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
-          chmod +x "Godot_v${GODOT_RELEASE}_linux.x86_64"
-          sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
-          godot --version
+screen/immersive_mode=true
+screen/support_small=false
+screen/support_normal=true
+screen/support_large=true
+screen/support_xlarge=true
+screen/keep_screen_on=true
 
-      - name: Install Godot export templates
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
-          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
-          unzip -q -o "Godot_v${GODOT_RELEASE}_export_templates.tpz"
-          cp templates/android_debug.apk "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_debug.apk"
-          cp templates/android_release.apk "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_release.apk"
-          test -f "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_release.apk"
+user_data_backup/allow=false
+command_line/extra_args=""
 
-      - name: Configure Godot Android paths
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.config/godot"
-          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
-          [gd_resource type="EditorSettings" format=3]
-          [resource]
-          export/android/java_sdk_path = "$JAVA_HOME"
-          export/android/android_sdk_path = "$ANDROID_HOME"
-          EOF
-          cat "$HOME/.config/godot/editor_settings-4.tres"
+apk_expansion/enable=false
+apk_expansion/SALT=""
+apk_expansion/public_key=""
 
-      - name: Generate keystores
-        shell: bash
-        run: |
-          set -euo pipefail
-          keytool -genkeypair -v -keystore "$GITHUB_WORKSPACE/release.keystore" -alias dosco -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=DOSCO,O=DOSCO,C=CI"
-          keytool -genkeypair -v -keystore "$GITHUB_WORKSPACE/debug.keystore" -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
-          keytool -list -keystore "$GITHUB_WORKSPACE/release.keystore" -alias dosco -storepass android
-
-      - name: Validate export configuration
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "JAVA_HOME=$JAVA_HOME"
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          test -d "$JAVA_HOME"
-          test -d "$ANDROID_HOME"
-          test -f "$GITHUB_WORKSPACE/release.keystore"
-          test -f export_presets.cfg
-          grep -n 'name="Android Release (APK)"' export_presets.cfg
-          grep -n 'gradle_build/export_format=0' export_presets.cfg
-          grep -n 'package/signed=true' export_presets.cfg
-
-      - name: Warm up Godot project cache
-        shell: bash
-        run: |
-          set -euo pipefail
-          godot --headless --editor --quit
-
-      - name: Export APK
-        shell: bash
-        env:
-          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ github.workspace }}/release.keystore
-          GODOT_ANDROID_KEYSTORE_RELEASE_USER: dosco
-          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: android
-          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/debug.keystore
-          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
-          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
-        run: |
-          set -euo pipefail
-          mkdir -p builds
-          godot --headless --verbose --export-release "$EXPORT_PRESET" "builds/${EXPORT_NAME}_${GITHUB_RUN_NUMBER}.apk"
-          ls -lah builds
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: "DOSCO-APK"
-          path: "builds/*.apk"
-          retention-days: 30
+permissions/custom_permissions=PackedStringArray()
+permissions/access_internet=true
+permissions/access_network_state=true
+permissions/vibrate=true
