@@ -1,4 +1,4 @@
-name: Build DOSCO Android (APK + AAB) - V5
+name: Build DOSCO Android (APK + AAB) - V7
 
 on:
   push:
@@ -25,13 +25,15 @@ jobs:
           chmod +x Godot_v4.3-stable_linux.x86_64
           sudo mv Godot_v4.3-stable_linux.x86_64 /usr/local/bin/godot
 
-      # === Export Templates (placement explicite) ===
-      - name: Download and Place Export Templates
+      # === Export Templates (placement correct) ===
+      - name: Download and Install Export Templates
         run: |
           mkdir -p ~/.local/share/godot/export_templates/4.3.stable
           wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
-          unzip -q -o Godot_v4.3-stable_export_templates.tpz -d ~/.local/share/godot/export_templates/4.3.stable/
+          unzip -q -o Godot_v4.3-stable_export_templates.tpz
+          mv templates/* ~/.local/share/godot/export_templates/4.3.stable/
           ls -la ~/.local/share/godot/export_templates/4.3.stable/
+          echo "✅ Templates installés"
 
       # === Android SDK ===
       - name: Setup Android SDK
@@ -79,6 +81,7 @@ jobs:
           godot --headless --export-release "Android Release (AAB)" \
             builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB skipped"
 
+      # === Upload ===
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
