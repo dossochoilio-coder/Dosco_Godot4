@@ -8,206 +8,78 @@ on:
   workflow_dispatch:
 
 env:
-  GODOT_VERSION: "4.3"
-  GODOT_RELEASE: "4.3-stable"
   EXPORT_NAME: "DOSCO"
   EXPORT_PRESET: "Android Release (APK)"
+  GODOT_VERSION: "4.3"
+  GODOT_RELEASE: "4.3-stable"
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 70
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      # ✅ JAVA
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
+          distribution: temurin
           java-version: "17"
 
+      # ✅ ANDROID SDK
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: "latest"
 
       - name: Install Android packages
-        shell: bash
         run: |
-          set -euo pipefail
-          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          yes | sdkmanager --licenses
 
-      - name: Download Godot Editor
-        shell: bash
+      # ✅ GODOT
+      - name: Download Godot
         run: |
-          set -euo pipefail
-          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
-          unzip -q "Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
-          chmod +x "Godot_v${GODOT_RELEASE}_linux.x86_64"
-          sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip
+          unzip -q Godot_v${GODOT_RELEASE}_linux.x86_64.zip
+          chmod +x Godot_v${GODOT_RELEASE}_linux.x86_64
+          sudo mv Godot_v${GODOT_RELEASE}_linux.x86_64 /usr/local/bin/godot
           godot --version
 
-      - name: Install Godot export templates
-        shell: bash
+      # ✅ TEMPLATES
+      - name: Install export templates
         run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
-          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
-          unzip -q -o "Godot_v${GODOT_RELEASE}_export_templates.tpz"
-          cp templates/android_debug.apk "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_debug.apk"
-          cp templates/android_release.apk "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_release.apk"
-          test -f "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_debug.apk"
-          test -f "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_release.apk"
+          mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz
+          unzip -q -o Godot_v${GODOT_RELEASE}_export_templates.tpz
+          cp templates/android_debug.apk ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
+          cp templates/android_release.apk ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
 
-      - name: Configure Godot Android paths
-        shell: bash
+      # ✅ CONFIG ANDROID GODOT
+      - name: Configure Godot Android SDK paths
         run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.config/godot"
-          SETTINGS_FILE="$HOME/.config/godot/editor_settings-4.tres"
-          {
-            echo '[gd_resource type="EditorSettings" format=3]'
-            echo '[resource]'
-            printf 'export/android/java_sdk_path = "%s"\n' "$JAVA_HOME"
-            printf 'export/android/android_sdk_path = "%s"\n' "$ANDROID_HOME"
-          } > "$SETTINGS_FILE"
-          cat "$SETTINGS_FILE"
+          mkdir -p ~/.config/godot
+          echo '[gd_resource type="EditorSettings" format=3]' > ~/.config/godot/editor_settings-4.tres
+          echo '[resource]' >> ~/.config/godot/editor_settings-4.tres
+          echo "export/android/java_sdk_path = \"$JAVA_HOME\"" >> ~/.config/godot/editor_settings-4.tres
+          echo "export/android/android_sdk_path = \"$ANDROID_HOME\"" >> ~/.config/godot/editor_settings-4.tres
 
-      - name: Generate Android keystores
-        shell: bash
+      # ✅ KEYSTORES
+      - name: Generate keystores
         run: |
-          set -euo pipefail
+          keytool -genkeypair -v -keystore release.keystore -alias dosco -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=DOSCO,O=DOSCO,C=CI"
+          keytool -genkeypair -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
 
-          keytool -genkeypair -v \
-            -keystore "$GITHUB_WORKSPACE/release.keystore" \
-            -alias dosco \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass android \
-            -keypass android \
-            -dname "CN=DOSCO,O=DOSCO,C=CI"
-
-          keytool -genkeypair -v \
-            -keystore "$GITHUB_WORKSPACE/debug.keystore" \
-            -alias androiddebugkey \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass android \
-            -keypass android \
-            -dname "CN=Android Debug,O=Android,C=US"
-
-          keytool -list -keystore "$GITHUB_WORKSPACE/release.keystore" -alias dosco -storepass android
-          keytool -list -keystore "$GITHUB_WORKSPACE/debug.keystore" -alias androiddebugkey -storepass android
-
-      - name: Force valid Android export preset values
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          test -f export_presets.cfg
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("export_presets.cfg")
-          text = path.read_text()
-
-          replacements = {
-              'gradle_build/use_gradle_build=': 'gradle_build/use_gradle_build=false',
-              'gradle_build/export_format=': 'gradle_build/export_format=0',
-              'package/signed=': 'package/signed=true',
-              'keystore/debug=': 'keystore/debug="debug.keystore"',
-              'keystore/debug_user=': 'keystore/debug_user="androiddebugkey"',
-              'keystore/debug_password=': 'keystore/debug_password="android"',
-              'keystore/release=': 'keystore/release="release.keystore"',
-              'keystore/release_user=': 'keystore/release_user="dosco"',
-              'keystore/release_password=': 'keystore/release_password="android"',
-          }
-
-          lines = text.splitlines()
-          keys_found = set()
-
-          new_lines = []
-          for line in lines:
-              stripped = line.strip()
-              replaced = False
-              for prefix, full_line in replacements.items():
-                  if stripped.startswith(prefix):
-                      new_lines.append(full_line)
-                      keys_found.add(prefix)
-                      replaced = True
-                      break
-              if not replaced:
-                  new_lines.append(line)
-
-          missing_lines = []
-          for prefix, full_line in replacements.items():
-              if prefix not in keys_found:
-                  missing_lines.append(full_line)
-
-          output = "\n".join(new_lines)
-
-          if missing_lines:
-              marker = "[preset.0.options]"
-              if marker not in output:
-                  raise SystemExit("ERROR: [preset.0.options] not found in export_presets.cfg")
-              output = output.replace(marker, marker + "\n" + "\n".join(missing_lines), 1)
-
-          path.write_text(output + "\n")
-          PY
-
-          echo "===== export_presets.cfg Android signing lines ====="
-          grep -nE 'gradle_build/use_gradle_build|gradle_build/export_format|package/signed|keystore/debug|keystore/release' export_presets.cfg
-
-      - name: Validate Godot Android export configuration
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          test -d "$JAVA_HOME"
-          test -d "$ANDROID_HOME"
-
-          test -f "$GITHUB_WORKSPACE/release.keystore"
-          test -f "$GITHUB_WORKSPACE/debug.keystore"
-
-          test -f "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_debug.apk"
-          test -f "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_release.apk"
-
-          grep -n 'name="Android Release (APK)"' export_presets.cfg
-          grep -n 'platform="Android"' export_presets.cfg
-          grep -n 'gradle_build/use_gradle_build=false' export_presets.cfg
-          grep -n 'gradle_build/export_format=0' export_presets.cfg
-          grep -n 'package/signed=true' export_presets.cfg
-          grep -n 'keystore/debug="debug.keystore"' export_presets.cfg
-          grep -n 'keystore/debug_user="androiddebugkey"' export_presets.cfg
-          grep -n 'keystore/debug_password="android"' export_presets.cfg
-          grep -n 'keystore/release="release.keystore"' export_presets.cfg
-          grep -n 'keystore/release_user="dosco"' export_presets.cfg
-          grep -n 'keystore/release_password="android"' export_presets.cfg
-
-      - name: Warm up Godot project cache
-        shell: bash
-        run: |
-          set -euo pipefail
-          godot --headless --editor --quit
-
+      # ✅ EXPORT
       - name: Export APK
-        shell: bash
         run: |
-          set -euo pipefail
           mkdir -p builds
           godot --headless --verbose --export-release "$EXPORT_PRESET" "builds/${EXPORT_NAME}_${GITHUB_RUN_NUMBER}.apk"
-          ls -lah builds
 
-      - name: Upload APK artifact
+      # ✅ UPLOAD
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: "DOSCO-APK"
-          path: "builds/*.apk"
-          retention-days: 30
+          name: dosco-apk
+          path: builds/*.apk
 ``
