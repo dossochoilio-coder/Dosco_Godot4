@@ -1,4 +1,4 @@
-name: Build DOSCO Android (APK + AAB) - Final V2
+name: Build DOSCO Android (APK + AAB) - Final V3
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # === Godot Editor (Standard) ===
+      # === Godot Editor ===
       - name: Download Godot Editor (Standard)
         run: |
           wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
@@ -25,13 +25,14 @@ jobs:
           chmod +x Godot_v4.3-stable_linux.x86_64
           sudo mv Godot_v4.3-stable_linux.x86_64 /usr/local/bin/godot
 
-      # === Export Templates Android ===
+      # === Export Templates (fix précis) ===
       - name: Download and Install Export Templates
         run: |
           mkdir -p ~/.local/share/godot/export_templates/4.3.stable
           wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
           unzip -q -o Godot_v4.3-stable_export_templates.tpz -d ~/.local/share/godot/export_templates/4.3.stable/
-          echo "✅ Templates installed"
+          ls -la ~/.local/share/godot/export_templates/4.3.stable/
+          echo "✅ Templates installés avec succès"
 
       # === Android SDK ===
       - name: Setup Android SDK
@@ -63,7 +64,6 @@ jobs:
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > release.keystore
             chmod 600 release.keystore
-            echo "✅ Release keystore ready"
           fi
 
       - name: Create builds folder
