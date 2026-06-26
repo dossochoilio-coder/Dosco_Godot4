@@ -1,4 +1,4 @@
-name: Build DOSCO Android (APK + AAB) - Final
+name: Build DOSCO Android (APK + AAB) - Manual
 
 on:
   push:
@@ -17,13 +17,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Godot + Templates
-        uses: chickensoft-games/setup-godot@v1
-        with:
-          version: "4.3.0"
-          include-templates: true
-          godot-sharp-release: false
+      # === Godot Editor Standard ===
+      - name: Download Godot Editor
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
+          unzip -q Godot_v4.3-stable_linux.x86_64.zip
+          chmod +x Godot_v4.3-stable_linux.x86_64
+          sudo mv Godot_v4.3-stable_linux.x86_64 /usr/local/bin/godot
 
+      # === Export Templates (placement précis) ===
+      - name: Download and Install Templates
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates/4.3.stable
+          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
+          unzip -q -o Godot_v4.3-stable_export_templates.tpz
+          mv templates/android_debug.apk ~/.local/share/godot/export_templates/4.3.stable/
+          mv templates/android_release.apk ~/.local/share/godot/export_templates/4.3.stable/
+          ls -la ~/.local/share/godot/export_templates/4.3.stable/
+
+      # === Android SDK ===
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -34,6 +46,7 @@ jobs:
           sdkmanager --update
           sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
+      # === Keystores ===
       - name: Generate Debug Keystore
         run: |
           keytool -genkeypair -v \
@@ -57,6 +70,7 @@ jobs:
       - name: Create builds folder
         run: mkdir -p builds
 
+      # === Export ===
       - name: Export APK
         run: |
           godot --headless --export-release "Android Release (APK)" \
@@ -67,6 +81,7 @@ jobs:
           godot --headless --export-release "Android Release (AAB)" \
             builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB skipped"
 
+      # === Upload ===
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
