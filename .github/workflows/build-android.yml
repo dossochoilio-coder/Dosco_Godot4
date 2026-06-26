@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -24,44 +28,68 @@ jobs:
 
       - name: Install Android packages
         run: |
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-          yes | sdkmanager --licenses > /dev/null
+          set -e
+          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          yes | sdkmanager --licenses > /dev/null || true
 
       - name: Download Godot
         run: |
+          set -e
           wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
           unzip -q Godot_v4.3-stable_linux.x86_64.zip
           chmod +x Godot_v4.3-stable_linux.x86_64
           sudo mv Godot_v4.3-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
 
-      - name: Install templates
+      - name: Install export templates
         run: |
+          set -e
           mkdir -p ~/.local/share/godot/export_templates/4.3.stable
           wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
           unzip -q -o Godot_v4.3-stable_export_templates.tpz
-          cp templates/android_debug.apk ~/.local/share/godot/export_templates/4.3.stable/
-          cp templates/android_release.apk ~/.local/share/godot/export_templates/4.3.stable/
+          cp templates/android_debug.apk ~/.local/share/godot/export_templates/4.3.stable/android_debug.apk
+          cp templates/android_release.apk ~/.local/share/godot/export_templates/4.3.stable/android_release.apk
 
       - name: Configure Godot
         run: |
+          set -e
           mkdir -p ~/.config/godot
           echo '[gd_resource type="EditorSettings" format=3]' > ~/.config/godot/editor_settings-4.tres
           echo '[resource]' >> ~/.config/godot/editor_settings-4.tres
           echo "export/android/java_sdk_path = \"$JAVA_HOME\"" >> ~/.config/godot/editor_settings-4.tres
           echo "export/android/android_sdk_path = \"$ANDROID_HOME\"" >> ~/.config/godot/editor_settings-4.tres
+          cat ~/.config/godot/editor_settings-4.tres
 
-      - name: Force unsigned export
+      - name: Force minimal Android preset
         run: |
-          sed -i 's/package\/signed=.*/package\/signed=false/' export_presets.cfg
-          sed -i '/keystore/d' export_presets.cfg
+          set -e
+          test -f export_presets.cfg
+          sed -i 's|^package/signed=.*|package/signed=false|' export_presets.cfg
+          sed -i 's|^keystore/debug=.*|keystore/debug=""|' export_presets.cfg
+          sed -i 's|^keystore/debug_user=.*|keystore/debug_user=""|' export_presets.cfg
+          sed -i 's|^keystore/debug_password=.*|keystore/debug_password=""|' export_presets.cfg
+          sed -i 's|^keystore/release=.*|keystore/release=""|' export_presets.cfg
+          sed -i 's|^keystore/release_user=.*|keystore/release_user=""|' export_presets.cfg
+          sed -i 's|^keystore/release_password=.*|keystore/release_password=""|' export_presets.cfg
+          sed -i 's|^launcher_icons/main_192x192=.*|launcher_icons/main_192x192=""|' export_presets.cfg
+          sed -i 's|^launcher_icons/adaptive_foreground_432x432=.*|launcher_icons/adaptive_foreground_432x432=""|' export_presets.cfg
+          sed -i 's|^launcher_icons/adaptive_background_432x432=.*|launcher_icons/adaptive_background_432x432=""|' export_presets.cfg
+          sed -i 's|^gradle_build/use_gradle_build=.*|gradle_build/use_gradle_build=false|' export_presets.cfg
+          sed -i 's|^gradle_build/export_format=.*|gradle_build/export_format=0|' export_presets.cfg
+          grep -nE 'package/signed|keystore/|launcher_icons/|gradle_build/export_format|gradle_build/use_gradle_build' export_presets.cfg
 
       - name: Import project
-        run: godot --headless --editor --quit
+        run: |
+          set -e
+          godot --headless --editor --quit --verbose
 
       - name: Export APK
         run: |
+          set -e
           mkdir -p builds
-          godot --headless --export-release "Android Release (APK)" "builds/app.apk"
+          godot --headless --verbose --export-release "Android Release (APK)" "builds/app.apk"
+          test -f builds/app.apk
+          ls -lah builds
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
