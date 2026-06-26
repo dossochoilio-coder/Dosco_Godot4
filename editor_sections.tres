@@ -1,0 +1,8 @@
+[gd_resource type="EditorSettings" format=3]
+
+[Android]
+export/gradle_build/use_gradle_build=true
+export/gradle_build/export_format=0
+export/gradle_build/min_sdk=24
+export/gradle_build/target_sdk=34
+export/android_sdk_path="/usr/local/lib/android/sdk"
