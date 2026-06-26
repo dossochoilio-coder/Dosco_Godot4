@@ -1,31 +1,19 @@
-name: Build DOSCO Android APK
+name: Build APK Test
 
 on:
   push:
     branches:
       - main
-      - master
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-env:
-  GODOT_VERSION: "4.3"
-  GODOT_RELEASE: "4.3-stable"
-  EXPORT_NAME: "DOSCO"
-  EXPORT_PRESET: "Android Release (APK)"
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 70
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -34,110 +22,51 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK packages
-        shell: bash
+      - name: Install Android packages
         run: |
-          set -e
-          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          yes | sdkmanager --licenses > /dev/null
 
-      - name: Download Godot editor
-        shell: bash
+      - name: Download Godot
         run: |
-          set -e
-          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
-          unzip -q "Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
-          chmod +x "Godot_v${GODOT_RELEASE}_linux.x86_64"
-          sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
-          godot --version
+          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
+          unzip -q Godot_v4.3-stable_linux.x86_64.zip
+          chmod +x Godot_v4.3-stable_linux.x86_64
+          sudo mv Godot_v4.3-stable_linux.x86_64 /usr/local/bin/godot
 
-      - name: Install Godot export templates
-        shell: bash
+      - name: Install export templates
         run: |
-          set -e
-          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
-          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
-          unzip -q -o "Godot_v${GODOT_RELEASE}_export_templates.tpz"
-          cp templates/android_debug.apk "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_debug.apk"
-          cp templates/android_release.apk "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_release.apk"
+          mkdir -p ~/.local/share/godot/export_templates/4.3.stable
+          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
+          unzip -q -o Godot_v4.3-stable_export_templates.tpz
+          cp templates/android_debug.apk ~/.local/share/godot/export_templates/4.3.stable/
+          cp templates/android_release.apk ~/.local/share/godot/export_templates/4.3.stable/
 
-      - name: Configure Godot Android paths
-        shell: bash
+      - name: Configure Godot paths
         run: |
-          set -e
-          mkdir -p "$HOME/.config/godot"
-          SETTINGS_FILE="$HOME/.config/godot/editor_settings-4.tres"
-          echo '[gd_resource type="EditorSettings" format=3]' > "$SETTINGS_FILE"
-          echo '[resource]' >> "$SETTINGS_FILE"
-          echo "export/android/java_sdk_path = \"$JAVA_HOME\"" >> "$SETTINGS_FILE"
-          echo "export/android/android_sdk_path = \"$ANDROID_HOME\"" >> "$SETTINGS_FILE"
-          cat "$SETTINGS_FILE"
+          mkdir -p ~/.config/godot
+          echo '[gd_resource type="EditorSettings" format=3]' > ~/.config/godot/editor_settings-4.tres
+          echo '[resource]' >> ~/.config/godot/editor_settings-4.tres
+          echo "export/android/java_sdk_path = \"$JAVA_HOME\"" >> ~/.config/godot/editor_settings-4.tres
+          echo "export/android/android_sdk_path = \"$ANDROID_HOME\"" >> ~/.config/godot/editor_settings-4.tres
 
-      - name: Force unsigned Godot export
-        shell: bash
+      - name: Force unsigned preset
         run: |
-          set -e
-          test -f export_presets.cfg
           sed -i 's|package/signed=.*|package/signed=false|g' export_presets.cfg
-          sed -i 's|keystore/debug=.*|keystore/debug=""|g' export_presets.cfg
-          sed -i 's|keystore/debug_user=.*|keystore/debug_user=""|g' export_presets.cfg
-          sed -i 's|keystore/debug_password=.*|keystore/debug_password=""|g' export_presets.cfg
-          sed -i 's|keystore/release=.*|keystore/release=""|g' export_presets.cfg
-          sed -i 's|keystore/release_user=.*|keystore/release_user=""|g' export_presets.cfg
-          sed -i 's|keystore/release_password=.*|keystore/release_password=""|g' export_presets.cfg
-          grep -n 'package/signed=false' export_presets.cfg
-          grep -n 'gradle_build/export_format=0' export_presets.cfg
+          sed -i 's|keystore/.*=.*|keystore/debug=""|g' export_presets.cfg || true
 
-      - name: Import project once before export
-        shell: bash
+      - name: Import project
         run: |
-          set -e
           godot --headless --editor --quit
 
-      - name: Export unsigned APK with Godot
-        shell: bash
+      - name: Export APK (unsigned)
         run: |
-          set -e
-          mkdir -p builds
-          godot --headless --verbose --export-release "$EXPORT_PRESET" "builds/${EXPORT_NAME}_unsigned.apk"
-          test -f "builds/${EXPORT_NAME}_unsigned.apk"
+          mkdir builds
+          godot --headless --verbose --export-release "Android Release (APK)" "builds/app.apk"
           ls -lah builds
 
-      - name: Decode release keystore from GitHub secrets
-        shell: bash
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: |
-          set -e
-          test -n "$ANDROID_KEYSTORE_BASE64"
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > upload.keystore
-          test -f upload.keystore
-          ls -lah upload.keystore
-
-      - name: Align and sign APK manually
-        shell: bash
-        env:
-          KEYSTORE_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          set -e
-          test -n "$KEYSTORE_ALIAS"
-          test -n "$KEYSTORE_PASSWORD"
-          test -n "$KEY_PASSWORD"
-          ZIPALIGN="$ANDROID_HOME/build-tools/34.0.0/zipalign"
-          APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
-          test -x "$ZIPALIGN"
-          test -x "$APKSIGNER"
-          "$ZIPALIGN" -p -f 4 "builds/${EXPORT_NAME}_unsigned.apk" "builds/${EXPORT_NAME}_aligned.apk"
-          "$APKSIGNER" sign --ks upload.keystore --ks-key-alias "$KEYSTORE_ALIAS" --ks-pass "pass:$KEYSTORE_PASSWORD" --key-pass "pass:$KEY_PASSWORD" --out "builds/${EXPORT_NAME}_${GITHUB_RUN_NUMBER}.apk" "builds/${EXPORT_NAME}_aligned.apk"
-          "$APKSIGNER" verify --verbose --print-certs "builds/${EXPORT_NAME}_${GITHUB_RUN_NUMBER}.apk"
-          ls -lah builds
-
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: dosco-apk
-          path: "builds/DOSCO_*.apk"
-          retention-days: 30
-``
+          name: apk
+          path: builds/app.apk
