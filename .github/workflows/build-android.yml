@@ -1,4 +1,4 @@
-name: Build DOSCO Android (APK + AAB) - V7
+name: Build DOSCO Android (APK + AAB) - Container
 
 on:
   push:
@@ -11,37 +11,15 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 70
+    container: barichello/godot-ci:4.3
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # === Godot Editor ===
-      - name: Download Godot Editor
-        run: |
-          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
-          unzip -q Godot_v4.3-stable_linux.x86_64.zip
-          chmod +x Godot_v4.3-stable_linux.x86_64
-          sudo mv Godot_v4.3-stable_linux.x86_64 /usr/local/bin/godot
-
-      # === Export Templates (placement correct) ===
-      - name: Download and Install Export Templates
-        run: |
-          mkdir -p ~/.local/share/godot/export_templates/4.3.stable
-          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
-          unzip -q -o Godot_v4.3-stable_export_templates.tpz
-          mv templates/* ~/.local/share/godot/export_templates/4.3.stable/
-          ls -la ~/.local/share/godot/export_templates/4.3.stable/
-          echo "✅ Templates installés"
-
-      # === Android SDK ===
+      # === Android SDK (dans le container) ===
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: "latest"
-
-      - name: Install Android packages
         run: |
           sdkmanager --update
           sdkmanager "platforms;android-34" "build-tools;34.0.0"
