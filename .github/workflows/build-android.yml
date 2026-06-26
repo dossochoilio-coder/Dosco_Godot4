@@ -1,4 +1,4 @@
-name: Build DOSCO Android (APK + AAB) - Container
+name: Build DOSCO Android (APK + AAB) - Final
 
 on:
   push:
@@ -11,20 +11,29 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    container: barichello/godot-ci:4.3
-    timeout-minutes: 60
+    timeout-minutes: 70
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # === Android SDK (dans le container) ===
+      - name: Setup Godot + Templates
+        uses: chickensoft-games/setup-godot@v1
+        with:
+          version: "4.3.0"
+          include-templates: true
+          godot-sharp-release: false
+
       - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: "latest"
+
+      - name: Install Android packages
         run: |
           sdkmanager --update
           sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-      # === Keystores ===
       - name: Generate Debug Keystore
         run: |
           keytool -genkeypair -v \
@@ -48,7 +57,6 @@ jobs:
       - name: Create builds folder
         run: mkdir -p builds
 
-      # === Export ===
       - name: Export APK
         run: |
           godot --headless --export-release "Android Release (APK)" \
@@ -59,7 +67,6 @@ jobs:
           godot --headless --export-release "Android Release (AAB)" \
             builds/${{ env.EXPORT_NAME }}_${{ github.run_number }}.aab || echo "AAB skipped"
 
-      # === Upload ===
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
